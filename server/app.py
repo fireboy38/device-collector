@@ -2086,6 +2086,12 @@ Password = ENC:{encrypted_pwd}
             f.write(config_content)
 
         if pack_mode == 'exe':
+            # 检测运行环境：Linux 容器无法生成 Windows EXE，自动回退到 zip 模式
+            if sys.platform.startswith('linux'):
+                app.logger.warning("[客户端生成] Linux 环境无法生成 Windows EXE，自动切换为 zip 模式")
+                pack_mode = 'zip'
+
+        if pack_mode == 'exe':
             # ===== PyInstaller 打包模式（onedir — 不触发杀毒误报） =====
             python_exe = shutil.which('python') or 'python'
             # 尝试用 venv 中的 python
