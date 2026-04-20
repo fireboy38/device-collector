@@ -1,0 +1,1508 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备信息采集器 - 管理端</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #1557b0;
+            --bg: #f5f7fa;
+            --card: #ffffff;
+            --text: #333333;
+            --text-light: #666666;
+            --border: #e0e4e8;
+            --success: #34a853;
+            --danger: #ea4335;
+            --warning: #fbbc04;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+        .header { background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: white; padding: 20px 40px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); }
+        .header h1 { font-size: 22px; font-weight: 600; }
+        .header p { font-size: 13px; opacity: 0.85; margin-top: 4px; }
+
+        .nav { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 40px; display: flex; gap: 0; overflow-x: auto; }
+        .nav-tab { padding: 14px 20px; font-size: 14px; font-weight: 500; cursor: pointer; border-bottom: 3px solid transparent; color: var(--text-light); transition: all 0.2s; white-space: nowrap; }
+        .nav-tab:hover { color: var(--primary); }
+        .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+
+        .container { padding: 24px 40px; max-width: 1400px; margin: 0 auto; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: var(--card); border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+        .stat-card .label { font-size: 13px; color: var(--text-light); }
+        .stat-card .value { font-size: 28px; font-weight: 700; margin-top: 6px; color: var(--primary); }
+
+        .card { background: var(--card); border-radius: 10px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 20px; }
+        .card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: #f8f9fb; text-align: left; padding: 10px 12px; font-weight: 600; color: var(--text-light); border-bottom: 2px solid var(--border); white-space: nowrap; }
+        td { padding: 10px 12px; border-bottom: 1px solid var(--border); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        tr:hover td { background: #f8f9fb; }
+
+        .btn { display: inline-flex; align-items: center; gap: 4px; padding: 7px 16px; border: none; border-radius: 6px; font-size: 13px; cursor: pointer; font-weight: 500; transition: all 0.2s; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover { background: var(--primary-dark); }
+        .btn-success { background: var(--success); color: white; }
+        .btn-success:hover { background: #2d8e47; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #c5221f; }
+        .btn-outline { background: white; color: var(--primary); border: 1px solid var(--primary); }
+        .btn-outline:hover { background: #f0f6ff; }
+        .btn-warning { background: var(--warning); color: #333; }
+        .btn-warning:hover { background: #e5a900; }
+        .btn-sm { padding: 4px 10px; font-size: 12px; }
+        .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
+
+        .form-row { display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 12px; color: var(--text-light); font-weight: 500; }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; transition: border-color 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,0.15); }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+        .badge-dhcp { background: #e8f5e9; color: #2e7d32; }
+        .badge-static { background: #fff3e0; color: #e65100; }
+        .badge-admin { background: #fce8e6; color: #c5221f; }
+        .badge-user { background: #e8f0fe; color: #1a73e8; }
+        .badge-warning { background: #fff3e0; color: #e65100; }
+        .badge-info { background: #e8f0fe; color: #1a73e8; }
+        .badge-danger { background: #fce8e6; color: #c5221f; }
+        .badge-success { background: #e8f5e9; color: #2e7d32; }
+
+        .filter-bar { display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px; flex-wrap: wrap; }
+
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-overlay.show { display: flex; }
+        .modal { background: var(--card); border-radius: 12px; padding: 28px; max-width: 700px; width: 90%; max-height: 85vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+        .modal h2 { font-size: 18px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+        .modal .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); }
+
+        .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .detail-item { padding: 8px 0; }
+        .detail-item .key { font-size: 12px; color: var(--text-light); margin-bottom: 2px; }
+        .detail-item .val { font-size: 14px; font-weight: 500; word-break: break-all; }
+
+        .chart-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+        .chart-bar .name { width: 120px; font-size: 13px; text-align: right; }
+        .chart-bar .bar-bg { flex: 1; height: 24px; background: #f0f0f0; border-radius: 4px; overflow: hidden; }
+        .chart-bar .bar-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.5s; min-width: 2px; }
+        .chart-bar .count { font-size: 13px; font-weight: 600; width: 40px; }
+
+        .empty { text-align: center; padding: 40px; color: var(--text-light); }
+        .empty .icon { font-size: 48px; margin-bottom: 12px; }
+
+        .import-area { display: none; margin-bottom: 16px; padding: 20px; background: #f0f6ff; border: 2px dashed #a0c4f0; border-radius: 10px; }
+        .import-area.show { display: block; }
+        .import-area h3 { font-size: 14px; margin-bottom: 12px; color: var(--primary-dark); }
+        .import-area p { font-size: 12px; color: var(--text-light); margin-bottom: 12px; line-height: 1.6; }
+        .file-input-wrapper { position: relative; display: inline-flex; }
+        .file-input-wrapper input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+        .import-result { margin-top: 12px; padding: 10px 14px; border-radius: 6px; font-size: 13px; display: none; }
+        .import-result.success { display: block; background: #e8f5e9; color: #2e7d32; }
+        .import-result.error { display: block; background: #fce8e6; color: #c5221f; }
+
+        .toast { position: fixed; top: 20px; right: 20px; padding: 12px 20px; border-radius: 8px; color: white; font-size: 14px; font-weight: 500; z-index: 2000; transform: translateX(120%); transition: transform 0.3s ease; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .toast.show { transform: translateX(0); }
+        .toast.success { background: var(--success); }
+        .toast.error { background: var(--danger); }
+        .toast.info { background: var(--primary); }
+
+        /* Edit modal form */
+        .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .edit-grid .full-width { grid-column: 1 / -1; }
+        .edit-grid .form-group input, .edit-grid .form-group select, .edit-grid .form-group textarea { width: 100%; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div>
+            <h1>🖥️ 设备信息采集器 - 管理端</h1>
+            <p>统一管理项目、用户、单位信息与终端设备采集数据</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px;">
+            <span id="currentUser" style="font-size:13px; opacity:0.9;"></span>
+            <button onclick="doLogout()" style="background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3); border-radius:6px; padding:6px 14px; font-size:12px; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">🚪 登出</button>
+        </div>
+    </div>
+</div>
+
+<div class="nav">
+    <div class="nav-tab active" data-tab="dashboard">📊 数据概览</div>
+    <div class="nav-tab" data-tab="projects">📁 项目管理</div>
+    <div class="nav-tab" data-tab="users">👥 用户管理</div>
+    <div class="nav-tab" data-tab="departments">🏢 单位管理</div>
+    <div class="nav-tab" data-tab="devices">💻 设备列表</div>
+    <div class="nav-tab" data-tab="logs">📋 操作日志</div>
+    <div class="nav-tab" data-tab="apikeys">🔑 API 管理</div>
+</div>
+
+<div class="container">
+    <!-- Dashboard -->
+    <div class="tab-content active" id="tab-dashboard">
+        <div class="stats-row" id="statsRow"></div>
+        <div class="card">
+            <div class="card-title">各项目设备数量分布</div>
+            <div id="projectChart"></div>
+        </div>
+    </div>
+
+    <!-- Projects -->
+    <div class="tab-content" id="tab-projects">
+        <div class="card">
+            <div class="card-title">
+                <span>项目列表</span>
+                <button class="btn btn-primary" onclick="showAddProject()">+ 新建项目</button>
+            </div>
+            <div id="addProjectForm" style="display:none; margin-bottom:16px; padding:16px; background:#f8f9fb; border-radius:8px;">
+                <div class="form-row">
+                    <div class="form-group"><label>项目名称 *</label><input type="text" id="projName" placeholder="请输入项目名称"></div>
+                    <div class="form-group"><label>项目编码</label><input type="text" id="projCode" placeholder="如 HQ"></div>
+                    <div class="form-group"><label>描述</label><input type="text" id="projDesc" placeholder="简要描述"></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="addProject()">确认添加</button>
+                    <button class="btn" style="background:#eee;" onclick="document.getElementById('addProjectForm').style.display='none'">取消</button>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>ID</th><th>项目名称</th><th>编码</th><th>描述</th><th>用户数</th><th>单位数</th><th>设备数</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody id="projectTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Users -->
+    <div class="tab-content" id="tab-users">
+        <div class="card">
+            <div class="card-title">
+                <span>用户列表</span>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showAddUser()">+ 添加用户</button>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <select id="filterUserProject" onchange="loadUsers()" style="padding:7px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+                            <option value="">全部项目</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="addUserForm" style="display:none; margin-bottom:16px; padding:16px; background:#f8f9fb; border-radius:8px;">
+                <div class="form-row">
+                    <div class="form-group"><label>用户名 *</label><input type="text" id="userUsername" placeholder="登录用户名"></div>
+                    <div class="form-group"><label>密码 *</label><input type="text" id="userPassword" placeholder="登录密码" value="123456"></div>
+                    <div class="form-group"><label>姓名</label><input type="text" id="userDisplayName" placeholder="显示名称"></div>
+                    <div class="form-group"><label>所属项目</label><select id="userProject" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="">-- 不关联 --</option></select></div>
+                    <div class="form-group"><label>角色</label><select id="userRole" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="addUser()">确认添加</button>
+                    <button class="btn" style="background:#eee;" onclick="document.getElementById('addUserForm').style.display='none'">取消</button>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>所属项目</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody id="userTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Departments -->
+    <!-- 生成客户端弹窗 -->
+    <div id="generateClientModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:none; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:28px 32px; width:520px; max-width:90vw; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <h3 style="margin:0 0 20px; font-size:18px; display:flex; align-items:center; gap:8px;">📦 生成客户端程序</h3>
+            <div style="background:#f0f7ff; border-radius:8px; padding:14px 16px; margin-bottom:18px; border-left:4px solid #1a73e8;">
+                <div style="font-size:13px; color:#666; margin-bottom:4px;">目标用户</div>
+                <div style="font-size:16px; font-weight:600;" id="gcUserName">-</div>
+                <div style="font-size:13px; color:#888;" id="gcUserDetail">-</div>
+            </div>
+            <div class="form-group">
+                <label>服务器地址</label>
+                <input type="text" id="gcServerUrl" placeholder="例如 http://192.168.1.100:5000" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                <div style="font-size:12px; color:#888; margin-top:4px;">留空则使用当前访问地址</div>
+            </div>
+            <div class="form-group" style="margin-top:14px;">
+                <label>用户密码 <span style="color:#ea4335;">*</span></label>
+                <input type="password" id="gcPassword" placeholder="输入该用户的登录密码" style="width:100%; padding:10px 12px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                <div style="font-size:12px; color:#888; margin-top:4px;">密码将以 AES 加密写入客户端，实现自动登录</div>
+            </div>
+            <div class="form-group" style="margin-top:14px;">
+                <label>打包方式</label>
+                <div style="display:flex; gap:12px; margin-top:6px;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; transition:all 0.2s;" id="gcModeExeLabel">
+                        <input type="radio" name="gcPackMode" value="exe" checked onchange="onPackModeChange()">
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">🖥️ EXE 可执行文件</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">独立运行，无需 Python 环境</div>
+                        </div>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; transition:all 0.2s;" id="gcModeZipLabel">
+                        <input type="radio" name="gcPackMode" value="zip" onchange="onPackModeChange()">
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">📁 Python 源码包</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">需要 Python 环境运行</div>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            <div style="background:#e8f5e9; border-radius:8px; padding:12px 14px; margin:16px 0; font-size:13px; color:#2e7d32; display:flex; align-items:flex-start; gap:8px;">
+                <span>🔒</span>
+                <div>密码采用 AES-128 加密存储在 CONFIG.INI 中，无法直接读取。EXE 模式生成需要约 1-2 分钟，请耐心等待。</div>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
+                <button class="btn" style="background:#eee; padding:10px 20px;" onclick="closeGenerateClient()">取消</button>
+                <button class="btn btn-primary" style="padding:10px 24px; font-size:15px;" onclick="doGenerateClient()" id="gcGenBtn">📦 生成并下载</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="tab-content" id="tab-departments">
+        <div class="card">
+            <div class="card-title">
+                <span>单位列表</span>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showAddDept()">+ 添加单位</button>
+                    <button class="btn btn-success" onclick="toggleImportArea()">📥 批量导入</button>
+                    <button class="btn btn-outline" onclick="downloadTemplate()">📄 下载模板</button>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <select id="filterDeptProject" onchange="loadDepartments()" style="padding:7px 12px; border:1px solid var(--border); border-radius:6px; font-size:13px;">
+                            <option value="">全部项目</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="import-area" id="importArea">
+                <h3>📥 批量导入单位</h3>
+                <p>支持 <strong>CSV</strong> 和 <strong>Excel (.xlsx)</strong> 文件。列顺序：单位名称（必填）、单位编码（选填）、描述（选填）。第一行表头自动跳过。重复名称自动跳过。</p>
+                <div class="form-row" style="align-items:flex-end;">
+                    <div class="form-group">
+                        <label>所属项目</label>
+                        <select id="importProject" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="">-- 请选择项目 --</option></select>
+                    </div>
+                    <div class="form-group">
+                        <label>选择文件</label>
+                        <div class="file-input-wrapper">
+                            <button class="btn btn-primary">📁 选择 CSV / Excel 文件</button>
+                            <input type="file" id="importFile" accept=".csv,.xlsx,.xls" onchange="onFileSelected(this)">
+                        </div>
+                    </div>
+                    <button class="btn btn-success" id="importBtn" onclick="doImport()" disabled>🚀 开始导入</button>
+                    <button class="btn" style="background:#eee;" onclick="toggleImportArea()">取消</button>
+                </div>
+                <div id="importFileName" style="font-size:12px;color:#666;margin-top:4px;"></div>
+                <div class="import-result" id="importResult"></div>
+            </div>
+            <div id="addDeptForm" style="display:none; margin-bottom:16px; padding:16px; background:#f8f9fb; border-radius:8px;">
+                <div class="form-row">
+                    <div class="form-group"><label>所属项目 *</label><select id="deptProject" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="">-- 请选择 --</option></select></div>
+                    <div class="form-group"><label>单位名称 *</label><input type="text" id="deptName" placeholder="请输入单位名称"></div>
+                    <div class="form-group"><label>单位编码</label><input type="text" id="deptCode" placeholder="如 IT-001"></div>
+                    <div class="form-group"><label>描述</label><input type="text" id="deptDesc" placeholder="简要描述"></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="addDepartment()">确认添加</button>
+                    <button class="btn" style="background:#eee;" onclick="hideAddDept()">取消</button>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>ID</th><th>所属项目</th><th>单位名称</th><th>编码</th><th>描述</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody id="deptTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Devices -->
+    <div class="tab-content" id="tab-devices">
+        <div class="filter-bar">
+            <div class="form-group">
+                <label>项目筛选</label>
+                <select id="filterProject" onchange="onProjectFilterChange()">
+                    <option value="">全部项目</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>单位筛选</label>
+                <select id="filterDept" onchange="loadDevices()">
+                    <option value="">全部单位</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>关键词搜索</label>
+                <input type="text" id="filterKeyword" placeholder="姓名/电脑名/IP" onkeyup="loadDevices()">
+            </div>
+            <div class="form-group">
+                <label>&nbsp;</label>
+                <div class="btn-group">
+                    <button class="btn btn-warning" onclick="checkDuplicates()">🔍 查重</button>
+                    <button class="btn btn-success" onclick="exportDevices('xlsx')">📥 导出 Excel</button>
+                    <button class="btn btn-outline" onclick="exportDevices('csv')">📥 导出 CSV</button>
+                </div>
+            </div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th><th>所属项目</th><th>所属单位</th><th>使用人</th><th>联系电话</th>
+                        <th>电脑名称</th><th>IP 地址</th><th>MAC 地址</th><th>DHCP</th><th>采集时间</th><th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="deviceTable"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Logs -->
+    <div class="tab-content" id="tab-logs">
+        <div class="filter-bar">
+            <div class="form-group">
+                <label>日志类型</label>
+                <select id="filterLogType" onchange="loadLogs()">
+                    <option value="">全部类型</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>关键词搜索</label>
+                <input type="text" id="filterLogKeyword" placeholder="搜索内容/操作人" onkeyup="loadLogs()">
+            </div>
+            <div class="form-group">
+                <label>&nbsp;</label>
+                <div class="btn-group">
+                    <button class="btn btn-danger" onclick="clearAllLogs()">🗑️ 清空日志</button>
+                    <button class="btn btn-outline" onclick="loadLogs()">🔄 刷新</button>
+                </div>
+            </div>
+        </div>
+        <div class="card" style="padding:0; overflow:hidden;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID</th><th>类型</th><th>内容</th><th>详情</th><th>操作人</th><th>IP</th><th>时间</th><th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="logTable"></tbody>
+            </table>
+        </div>
+        <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:16px;" id="logPagination"></div>
+    </div>
+
+    <!-- API Keys -->
+    <div class="tab-content" id="tab-apikeys">
+        <div class="card">
+            <div class="card-title">
+                <span>🔑 API Key 管理</span>
+                <div class="btn-group">
+                    <button class="btn btn-primary" onclick="showCreateApiKey()">+ 创建 API Key</button>
+                    <a class="btn btn-outline" href="/api-docs" target="_blank">📖 API 文档</a>
+                </div>
+            </div>
+            <div id="createApiKeyForm" style="display:none; margin-bottom:16px; padding:16px; background:#f8f9fb; border-radius:8px;">
+                <div class="form-row">
+                    <div class="form-group"><label>名称 *</label><input type="text" id="apiKeyName" placeholder="如：OA系统对接"></div>
+                    <div class="form-group"><label>权限</label><select id="apiKeyPerms" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="read">只读 (read)</option><option value="read,write">读写 (read,write)</option></select></div>
+                    <div class="form-group"><label>过期时间</label><input type="datetime-local" id="apiKeyExpires"></div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;"><label>描述</label><input type="text" id="apiKeyDesc" placeholder="用途说明"></div>
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button class="btn btn-primary" onclick="createApiKey()">确认创建</button>
+                    <button class="btn" style="background:#eee;" onclick="document.getElementById('createApiKeyForm').style.display='none'">取消</button>
+                </div>
+            </div>
+            <div id="newKeyDisplay" style="display:none; margin-bottom:16px; padding:16px; background:#e8f5e9; border-radius:8px; border:1px solid #a5d6a7;">
+                <p style="font-size:14px; font-weight:600; color:#2e7d32; margin-bottom:8px;">✅ API Key 创建成功！请立即复制保存，此密钥仅显示一次：</p>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <code id="newKeyValue" style="flex:1; padding:8px 12px; background:white; border-radius:4px; font-size:14px; word-break:break-all;"></code>
+                    <button class="btn btn-primary btn-sm" onclick="copyNewKey()">📋 复制</button>
+                </div>
+            </div>
+            <table>
+                <thead><tr><th>ID</th><th>名称</th><th>API Key</th><th>权限</th><th>状态</th><th>描述</th><th>最后使用</th><th>创建时间</th><th>操作</th></tr></thead>
+                <tbody id="apiKeyTable"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detailModal">
+    <div class="modal">
+        <h2>设备详细信息 <button class="close-btn" onclick="closeDetailModal()">&times;</button></h2>
+        <div class="detail-grid" id="detailContent"></div>
+    </div>
+</div>
+
+<!-- Edit Device Modal -->
+<div class="modal-overlay" id="editModal">
+    <div class="modal" style="max-width:800px;">
+        <h2>编辑设备信息 <button class="close-btn" onclick="closeEditModal()">&times;</button></h2>
+        <input type="hidden" id="editDeviceId">
+        <div class="edit-grid" id="editForm">
+            <div class="form-group">
+                <label>所属单位</label>
+                <select id="editDeptId" style="width:100%;padding:8px 12px; border:1px solid var(--border); border-radius:6px;"></select>
+            </div>
+            <div class="form-group">
+                <label>使用人</label>
+                <input type="text" id="editUserName">
+            </div>
+            <div class="form-group">
+                <label>联系电话</label>
+                <input type="text" id="editUserPhone">
+            </div>
+            <div class="form-group">
+                <label>安装位置</label>
+                <input type="text" id="editUserPosition">
+            </div>
+            <div class="form-group">
+                <label>电脑名称</label>
+                <input type="text" id="editComputerName">
+            </div>
+            <div class="form-group">
+                <label>IP 地址</label>
+                <input type="text" id="editIpAddress">
+            </div>
+            <div class="form-group">
+                <label>MAC 地址</label>
+                <input type="text" id="editMacAddress">
+            </div>
+            <div class="form-group">
+                <label>DHCP</label>
+                <select id="editDhcpEnabled" style="width:100%;padding:8px 12px; border:1px solid var(--border); border-radius:6px;">
+                    <option value="是">是</option><option value="否">否</option><option value="未知">未知</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>子网掩码</label>
+                <input type="text" id="editSubnetMask">
+            </div>
+            <div class="form-group">
+                <label>默认网关</label>
+                <input type="text" id="editGateway">
+            </div>
+            <div class="form-group">
+                <label>DNS 服务器</label>
+                <input type="text" id="editDnsServers">
+            </div>
+            <div class="form-group">
+                <label>网卡</label>
+                <input type="text" id="editNetworkAdapter">
+            </div>
+            <div class="form-group full-width">
+                <label>操作系统</label>
+                <input type="text" id="editOsInfo">
+            </div>
+            <div class="form-group">
+                <label>CPU</label>
+                <input type="text" id="editCpuInfo">
+            </div>
+            <div class="form-group">
+                <label>内存</label>
+                <input type="text" id="editRamInfo">
+            </div>
+            <div class="form-group full-width">
+                <label>硬盘</label>
+                <input type="text" id="editDiskInfo">
+            </div>
+            <div class="form-group full-width">
+                <label>主板</label>
+                <input type="text" id="editMotherboardInfo">
+            </div>
+            <div class="form-group full-width">
+                <label>显卡</label>
+                <input type="text" id="editGpuInfo">
+            </div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+            <button class="btn" style="background:#eee;" onclick="closeEditModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveDevice()">💾 保存修改</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Project Modal -->
+<div class="modal-overlay" id="editProjectModal">
+    <div class="modal" style="max-width:500px;">
+        <h2>编辑项目 <button class="close-btn" onclick="closeEditProjectModal()">&times;</button></h2>
+        <input type="hidden" id="editProjectId">
+        <div class="form-row" style="flex-direction:column;">
+            <div class="form-group"><label>项目名称 *</label><input type="text" id="editProjName" style="width:100%"></div>
+            <div class="form-group"><label>项目编码</label><input type="text" id="editProjCode" style="width:100%"></div>
+            <div class="form-group"><label>描述</label><input type="text" id="editProjDesc" style="width:100%"></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+            <button class="btn" style="background:#eee;" onclick="closeEditProjectModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveProject()">💾 保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="editUserModal">
+    <div class="modal" style="max-width:500px;">
+        <h2>编辑用户 <button class="close-btn" onclick="closeEditUserModal()">&times;</button></h2>
+        <input type="hidden" id="editUserId">
+        <div class="form-row" style="flex-direction:column;">
+            <div class="form-group"><label>姓名</label><input type="text" id="editUserDisplayName" style="width:100%"></div>
+            <div class="form-group"><label>所属项目</label><select id="editUserProject" style="width:100%;padding:8px 12px; border:1px solid var(--border); border-radius:6px;"></select></div>
+            <div class="form-group"><label>角色</label><select id="editUserRole" style="width:100%;padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="user">普通用户</option><option value="admin">管理员</option></select></div>
+            <div class="form-group"><label>新密码（留空不修改）</label><input type="text" id="editUserPassword" style="width:100%" placeholder="留空则不修改密码"></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+            <button class="btn" style="background:#eee;" onclick="closeEditUserModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveUser()">💾 保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Edit Department Modal -->
+<div class="modal-overlay" id="editDeptModal">
+    <div class="modal" style="max-width:500px;">
+        <h2>编辑单位 <button class="close-btn" onclick="closeEditDeptModal()">&times;</button></h2>
+        <input type="hidden" id="editDeptId">
+        <div class="form-row" style="flex-direction:column;">
+            <div class="form-group"><label>所属项目 *</label><select id="editDeptProject" style="width:100%;padding:8px 12px; border:1px solid var(--border); border-radius:6px;"></select></div>
+            <div class="form-group"><label>单位名称 *</label><input type="text" id="editDeptName" style="width:100%"></div>
+            <div class="form-group"><label>单位编码</label><input type="text" id="editDeptCode" style="width:100%"></div>
+            <div class="form-group"><label>描述</label><input type="text" id="editDeptDesc" style="width:100%"></div>
+        </div>
+        <div style="display:flex; gap:8px; margin-top:16px; justify-content:flex-end;">
+            <button class="btn" style="background:#eee;" onclick="closeEditDeptModal()">取消</button>
+            <button class="btn btn-primary" onclick="saveDepartment()">💾 保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- Duplicate Check Modal -->
+<div class="modal-overlay" id="dupCheckModal">
+    <div class="modal" style="max-width:900px;">
+        <h2>🔍 IP/MAC 查重结果 <button class="close-btn" onclick="closeDupCheckModal()">&times;</button></h2>
+        <div id="dupCheckSummary" style="margin-bottom:16px;"></div>
+        <div id="dupCheckContent"></div>
+        <div style="display:flex; gap:8px; margin-top:20px; justify-content:flex-end;">
+            <button class="btn" style="background:#eee;" onclick="closeDupCheckModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '';
+
+function showToast(msg, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.className = 'toast ' + type;
+    setTimeout(() => toast.classList.add('show'), 10);
+    setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+// Tab switching
+document.querySelectorAll('.nav-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('tab-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'dashboard') loadStats();
+        if (tab.dataset.tab === 'projects') loadProjects();
+        if (tab.dataset.tab === 'users') { loadProjectSelects(); loadUsers(); }
+        if (tab.dataset.tab === 'departments') { loadProjectSelects(); loadDepartments(); }
+        if (tab.dataset.tab === 'devices') { loadProjectSelects(); loadDevices(); }
+        if (tab.dataset.tab === 'logs') { loadLogTypes(); loadLogs(); }
+        if (tab.dataset.tab === 'apikeys') { loadApiKeys(); }
+    });
+});
+
+// Load project dropdowns
+async function loadProjectSelects() {
+    const res = await fetch(API + '/api/projects');
+    const data = await res.json();
+    const options = '<option value="">全部项目</option>' + data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    const optsNoAll = '<option value="">-- 请选择 --</option>' + data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    const optsNoAllNoEmpty = data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+
+    ['filterProject', 'filterDeptProject', 'filterUserProject'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = options;
+    });
+    ['userProject', 'deptProject', 'importProject'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = optsNoAll;
+    });
+    ['editDeptId'].forEach(id => {
+        // load departments for edit
+    });
+    ['editUserProject'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = optsNoAll;
+    });
+    return data;
+}
+
+// ==================== Stats ====================
+async function loadStats() {
+    const res = await fetch(API + '/api/stats');
+    const data = await res.json();
+    document.getElementById('statsRow').innerHTML = `
+        <div class="stat-card"><div class="label">项目总数</div><div class="value">${data.project_count}</div></div>
+        <div class="stat-card"><div class="label">用户总数</div><div class="value">${data.user_count}</div></div>
+        <div class="stat-card"><div class="label">单位总数</div><div class="value">${data.department_count}</div></div>
+        <div class="stat-card"><div class="label">设备总数</div><div class="value">${data.device_count}</div></div>
+        <div class="stat-card"><div class="label">今日采集</div><div class="value" style="color:var(--success)">${data.today_count}</div></div>
+    `;
+    const maxCount = Math.max(...data.project_stats.map(d => d.count), 1);
+    document.getElementById('projectChart').innerHTML = data.project_stats.map(d => `
+        <div class="chart-bar">
+            <span class="name">${d.name}</span>
+            <div class="bar-bg"><div class="bar-fill" style="width:${(d.count/maxCount)*100}%"></div></div>
+            <span class="count">${d.count}</span>
+        </div>
+    `).join('');
+}
+
+// ==================== Projects ====================
+async function loadProjects() {
+    const res = await fetch(API + '/api/projects');
+    const data = await res.json();
+    const tbody = document.getElementById('projectTable');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">📭</div>暂无项目</td></tr>'; return; }
+    tbody.innerHTML = data.map(p => `
+        <tr>
+            <td>${p.id}</td>
+            <td><strong>${p.name}</strong></td>
+            <td><code>${p.code || '-'}</code></td>
+            <td>${p.description || '-'}</td>
+            <td>${p.user_count}</td>
+            <td>${p.dept_count}</td>
+            <td>${p.device_count}</td>
+            <td>${p.created_at || '-'}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="editProject(${p.id},'${escapeAttr(p.name)}','${escapeAttr(p.code||'')}','${escapeAttr(p.description||'')}')">编辑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteProject(${p.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function escapeAttr(s) { return s.replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
+
+function showAddProject() { document.getElementById('addProjectForm').style.display = 'block'; }
+
+async function addProject() {
+    const name = document.getElementById('projName').value.trim();
+    if (!name) { alert('请输入项目名称'); return; }
+    const res = await fetch(API + '/api/projects', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, code: document.getElementById('projCode').value.trim(), description: document.getElementById('projDesc').value.trim() })
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('添加成功', 'success'); document.getElementById('addProjectForm').style.display = 'none'; loadProjects(); }
+    else { showToast(data.error || '添加失败', 'error'); }
+}
+
+function editProject(id, name, code, desc) {
+    document.getElementById('editProjectId').value = id;
+    document.getElementById('editProjName').value = name;
+    document.getElementById('editProjCode').value = code;
+    document.getElementById('editProjDesc').value = desc;
+    document.getElementById('editProjectModal').classList.add('show');
+}
+function closeEditProjectModal() { document.getElementById('editProjectModal').classList.remove('show'); }
+
+async function saveProject() {
+    const id = document.getElementById('editProjectId').value;
+    const res = await fetch(API + `/api/projects/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name: document.getElementById('editProjName').value.trim(),
+            code: document.getElementById('editProjCode').value.trim(),
+            description: document.getElementById('editProjDesc').value.trim()
+        })
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('更新成功', 'success'); closeEditProjectModal(); loadProjects(); }
+    else { showToast(data.error || '更新失败', 'error'); }
+}
+
+async function deleteProject(id) {
+    if (!confirm('确定删除该项目？')) return;
+    const res = await fetch(API + `/api/projects/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (res.ok) { showToast('删除成功', 'success'); loadProjects(); }
+    else { showToast(data.error || '删除失败', 'error'); }
+}
+
+// ==================== Users ====================
+async function loadUsers() {
+    const project_id = document.getElementById('filterUserProject')?.value || '';
+    let url = API + '/api/users?';
+    if (project_id) url += `project_id=${project_id}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const tbody = document.getElementById('userTable');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty"><div class="icon">📭</div>暂无用户</td></tr>'; return; }
+    tbody.innerHTML = data.map(u => `
+        <tr>
+            <td>${u.id}</td>
+            <td><strong>${u.username}</strong></td>
+            <td>${u.display_name || '-'}</td>
+            <td>${u.project_name || '<span style="color:#999">全部项目</span>'}</td>
+            <td>${u.role === 'admin' ? '<span class="badge badge-admin">管理员</span>' : '<span class="badge badge-user">普通用户</span>'}</td>
+            <td>${u.created_at || '-'}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick='editUser(${JSON.stringify(u)})'>编辑</button>
+                <button class="btn btn-warning btn-sm" onclick="resetPassword(${u.id})">重置密码</button>
+                <button class="btn btn-sm" style="background:#6f42c1;color:white;" onclick='showGenerateClient(${JSON.stringify(u)})'>📦 生成客户端</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddUser() { document.getElementById('addUserForm').style.display = 'block'; }
+
+async function addUser() {
+    const username = document.getElementById('userUsername').value.trim();
+    const password = document.getElementById('userPassword').value.trim();
+    if (!username || !password) { alert('请填写用户名和密码'); return; }
+    const res = await fetch(API + '/api/users', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            username, password,
+            display_name: document.getElementById('userDisplayName').value.trim(),
+            project_id: document.getElementById('userProject').value || null,
+            role: document.getElementById('userRole').value
+        })
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('添加成功', 'success'); document.getElementById('addUserForm').style.display = 'none'; loadUsers(); }
+    else { showToast(data.error || '添加失败', 'error'); }
+}
+
+function editUser(u) {
+    document.getElementById('editUserId').value = u.id;
+    document.getElementById('editUserDisplayName').value = u.display_name || '';
+    document.getElementById('editUserProject').value = u.project_id || '';
+    document.getElementById('editUserRole').value = u.role || 'user';
+    document.getElementById('editUserPassword').value = '';
+    document.getElementById('editUserModal').classList.add('show');
+}
+function closeEditUserModal() { document.getElementById('editUserModal').classList.remove('show'); }
+
+async function saveUser() {
+    const id = document.getElementById('editUserId').value;
+    const body = {
+        display_name: document.getElementById('editUserDisplayName').value.trim(),
+        project_id: document.getElementById('editUserProject').value || null,
+        role: document.getElementById('editUserRole').value,
+        password: document.getElementById('editUserPassword').value.trim()
+    };
+    const res = await fetch(API + `/api/users/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('更新成功', 'success'); closeEditUserModal(); loadUsers(); }
+    else { showToast(data.error || '更新失败', 'error'); }
+}
+
+async function resetPassword(id) {
+    if (!confirm('确定重置密码为 123456？')) return;
+    const res = await fetch(API + `/api/users/reset-password/${id}`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ password: '123456' })
+    });
+    const data = await res.json();
+    showToast(data.message || '已重置', 'success');
+}
+
+async function deleteUser(id) {
+    if (!confirm('确定删除该用户？')) return;
+    await fetch(API + `/api/users/${id}`, { method: 'DELETE' });
+    showToast('删除成功', 'success'); loadUsers();
+}
+
+// ==================== Generate Client ====================
+let _gcUser = null;
+
+function showGenerateClient(user) {
+    _gcUser = user;
+    document.getElementById('gcUserName').textContent = user.display_name || user.username;
+    document.getElementById('gcUserDetail').textContent = `用户名: ${user.username} | 项目: ${user.project_name || '未关联'} | 角色: ${user.role === 'admin' ? '管理员' : '普通用户'}`;
+    // 默认服务器地址
+    document.getElementById('gcServerUrl').value = '';
+    document.getElementById('gcPassword').value = '';
+    const modal = document.getElementById('generateClientModal');
+    modal.style.display = 'flex';
+}
+
+function closeGenerateClient() {
+    document.getElementById('generateClientModal').style.display = 'none';
+    _gcUser = null;
+}
+
+async function doGenerateClient() {
+    if (!_gcUser) return;
+    const password = document.getElementById('gcPassword').value.trim();
+    if (!password) {
+        alert('请输入用户密码');
+        return;
+    }
+
+    const serverUrl = document.getElementById('gcServerUrl').value.trim();
+    const packMode = document.querySelector('input[name="gcPackMode"]:checked').value;
+    const btn = document.getElementById('gcGenBtn');
+    btn.disabled = true;
+    btn.textContent = packMode === 'exe' ? '⏳ 正在打包 EXE（约1-2分钟）...' : '⏳ 生成中...';
+
+    try {
+        const res = await fetch(API + '/api/generate-client', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                user_id: _gcUser.id,
+                server_url: serverUrl,
+                password: password,
+                pack_mode: packMode
+            })
+        });
+
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || '生成失败');
+        }
+
+        // 下载 ZIP 文件
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        const suffix = packMode === 'exe' ? 'EXE版' : '源码版';
+        a.download = `设备采集客户端_${_gcUser.display_name || _gcUser.username}_${suffix}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+
+        showToast(`客户端已生成并下载（${packMode === 'exe' ? 'EXE版' : '源码版'}）`, 'success');
+        closeGenerateClient();
+    } catch (e) {
+        alert('生成失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '📦 生成并下载';
+    }
+}
+
+// 打包模式切换样式
+function onPackModeChange() {
+    const val = document.querySelector('input[name="gcPackMode"]:checked').value;
+    const exeLabel = document.getElementById('gcModeExeLabel');
+    const zipLabel = document.getElementById('gcModeZipLabel');
+    exeLabel.style.borderColor = val === 'exe' ? '#1a73e8' : 'var(--border)';
+    exeLabel.style.background = val === 'exe' ? '#f0f7ff' : 'white';
+    zipLabel.style.borderColor = val === 'zip' ? '#1a73e8' : 'var(--border)';
+    zipLabel.style.background = val === 'zip' ? '#f0f7ff' : 'white';
+}
+// 初始化样式
+setTimeout(onPackModeChange, 100);
+
+// ==================== Departments ====================
+async function loadDepartments() {
+    const project_id = document.getElementById('filterDeptProject')?.value || '';
+    let url = API + '/api/departments?';
+    if (project_id) url += `project_id=${project_id}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const tbody = document.getElementById('deptTable');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty"><div class="icon">📭</div>暂无单位</td></tr>'; return; }
+    tbody.innerHTML = data.map(d => `
+        <tr>
+            <td>${d.id}</td>
+            <td>${d.project_name || '-'}</td>
+            <td><strong>${d.name}</strong></td>
+            <td><code>${d.code || '-'}</code></td>
+            <td>${d.description || '-'}</td>
+            <td>${d.created_at || '-'}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick='editDepartment(${JSON.stringify(d)})'>编辑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteDept(${d.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showAddDept() { document.getElementById('addDeptForm').style.display = 'block'; }
+function hideAddDept() { document.getElementById('addDeptForm').style.display = 'none'; }
+
+async function addDepartment() {
+    const name = document.getElementById('deptName').value.trim();
+    const project_id = document.getElementById('deptProject').value;
+    if (!name) { alert('请输入单位名称'); return; }
+    if (!project_id) { alert('请选择所属项目'); return; }
+    const res = await fetch(API + '/api/departments', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, code: document.getElementById('deptCode').value.trim(), description: document.getElementById('deptDesc').value.trim(), project_id: parseInt(project_id) })
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('添加成功', 'success'); hideAddDept(); loadDepartments(); }
+    else { showToast(data.error || '添加失败', 'error'); }
+}
+
+function toggleImportArea() {
+    const area = document.getElementById('importArea');
+    area.classList.toggle('show');
+    document.getElementById('importResult').className = 'import-result';
+    document.getElementById('importResult').textContent = '';
+    document.getElementById('importFileName').textContent = '';
+    document.getElementById('importBtn').disabled = true;
+    document.getElementById('importFile').value = '';
+}
+function onFileSelected(input) {
+    const file = input.files[0];
+    document.getElementById('importFileName').textContent = file ? '已选择: ' + file.name : '';
+    document.getElementById('importBtn').disabled = !file;
+}
+async function doImport() {
+    const file = document.getElementById('importFile').files[0];
+    const project_id = document.getElementById('importProject').value;
+    if (!file) { showToast('请先选择文件', 'error'); return; }
+    if (!project_id) { showToast('请选择所属项目', 'error'); return; }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('project_id', project_id);
+    const resultDiv = document.getElementById('importResult');
+    resultDiv.className = 'import-result'; resultDiv.textContent = '正在导入...'; resultDiv.style.display = 'block';
+    try {
+        const res = await fetch(API + '/api/departments/batch', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok) {
+            resultDiv.className = 'import-result success';
+            resultDiv.textContent = data.message + (data.details ? '\n' + data.details.slice(0,5).join('\n') : '');
+            showToast('导入完成', 'success'); loadDepartments();
+        } else { resultDiv.className = 'import-result error'; resultDiv.textContent = data.error; showToast('导入失败', 'error'); }
+    } catch(e) { resultDiv.className = 'import-result error'; resultDiv.textContent = '网络错误'; }
+}
+function downloadTemplate() { window.open(API + '/api/departments/template', '_blank'); }
+async function deleteDept(id) {
+    if (!confirm('确定删除该单位？')) return;
+    await fetch(API + `/api/departments/${id}`, { method: 'DELETE' });
+    showToast('删除成功', 'success'); loadDepartments();
+}
+
+async function editDepartment(d) {
+    document.getElementById('editDeptId').value = d.id;
+    document.getElementById('editDeptName').value = d.name || '';
+    document.getElementById('editDeptCode').value = d.code || '';
+    document.getElementById('editDeptDesc').value = d.description || '';
+    // Load project options for the dropdown
+    const projects = await loadProjectSelects();
+    const sel = document.getElementById('editDeptProject');
+    sel.innerHTML = '<option value="">-- 请选择 --</option>' + projects.map(p => 
+        `<option value="${p.id}" ${p.id === d.project_id ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+    document.getElementById('editDeptModal').classList.add('show');
+}
+function closeEditDeptModal() { document.getElementById('editDeptModal').classList.remove('show'); }
+
+async function saveDepartment() {
+    const id = document.getElementById('editDeptId').value;
+    const name = document.getElementById('editDeptName').value.trim();
+    const project_id = document.getElementById('editDeptProject').value;
+    if (!name) { alert('请输入单位名称'); return; }
+    if (!project_id) { alert('请选择所属项目'); return; }
+    const res = await fetch(API + `/api/departments/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name,
+            code: document.getElementById('editDeptCode').value.trim(),
+            description: document.getElementById('editDeptDesc').value.trim(),
+            project_id: parseInt(project_id)
+        })
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('更新成功', 'success'); closeEditDeptModal(); loadDepartments(); }
+    else { showToast(data.error || '更新失败', 'error'); }
+}
+
+// ==================== Duplicate Check ====================
+async function checkDuplicates() {
+    const res = await fetch(API + '/api/devices/check-duplicates');
+    const data = await res.json();
+    
+    const summary = document.getElementById('dupCheckSummary');
+    const content = document.getElementById('dupCheckContent');
+    
+    if (data.ip_duplicate_count === 0 && data.mac_duplicate_count === 0) {
+        summary.innerHTML = '<div style="padding:20px;text-align:center;"><span style="font-size:48px;">✅</span><p style="margin-top:12px;font-size:16px;color:#34a853;font-weight:600;">未发现 IP 或 MAC 地址重复</p></div>';
+        content.innerHTML = '';
+        document.getElementById('dupCheckModal').classList.add('show');
+        return;
+    }
+    
+    let html = `<div style="display:flex;gap:16px;margin-bottom:16px;">
+        <div class="stat-card" style="flex:1;text-align:center;"><div class="label">IP 重复组数</div><div class="value" style="color:#ea4335;font-size:24px;">${data.ip_duplicate_count}</div></div>
+        <div class="stat-card" style="flex:1;text-align:center;"><div class="label">MAC 重复组数</div><div class="value" style="color:#ea4335;font-size:24px;">${data.mac_duplicate_count}</div></div>
+        <div class="stat-card" style="flex:1;text-align:center;"><div class="label">涉及设备数</div><div class="value" style="color:#fbbc04;font-size:24px;">${data.total_duplicate_devices}</div></div>
+    </div>`;
+    
+    // IP duplicates
+    if (data.ip_duplicate_count > 0) {
+        html += '<div class="card"><div class="card-title"><span style="color:#ea4335;">📡 IP 地址重复</span></div><table><thead><tr><th>IP 地址</th><th>电脑名称</th><th>使用人</th><th>所属单位</th><th>所属项目</th><th>MAC 地址</th></tr></thead><tbody>';
+        for (const [ip, devices] of Object.entries(data.ip_duplicates)) {
+            devices.forEach((d, idx) => {
+                html += `<tr style="${idx === 0 ? '' : 'border-top:1px dashed #eee;'}">
+                    <td><code style="color:#ea4335;font-weight:600;">${ip}</code></td>
+                    <td>${d.computer_name || '-'}</td>
+                    <td>${d.user_name || '-'}</td>
+                    <td>${d.department_name || '-'}</td>
+                    <td>${d.project_name || '-'}</td>
+                    <td><code>${d.mac_address || '-'}</code></td>
+                </tr>`;
+            });
+        }
+        html += '</tbody></table></div>';
+    }
+    
+    // MAC duplicates
+    if (data.mac_duplicate_count > 0) {
+        html += '<div class="card" style="margin-top:16px;"><div class="card-title"><span style="color:#ea4335;">🏷️ MAC 地址重复</span></div><table><thead><tr><th>MAC 地址</th><th>电脑名称</th><th>使用人</th><th>所属单位</th><th>所属项目</th><th>IP 地址</th></tr></thead><tbody>';
+        for (const [mac, devices] of Object.entries(data.mac_duplicates)) {
+            devices.forEach((d, idx) => {
+                html += `<tr style="${idx === 0 ? '' : 'border-top:1px dashed #eee;'}">
+                    <td><code style="color:#ea4335;font-weight:600;">${mac}</code></td>
+                    <td>${d.computer_name || '-'}</td>
+                    <td>${d.user_name || '-'}</td>
+                    <td>${d.department_name || '-'}</td>
+                    <td>${d.project_name || '-'}</td>
+                    <td><code>${d.ip_address || '-'}</code></td>
+                </tr>`;
+            });
+        }
+        html += '</tbody></table></div>';
+    }
+    
+    summary.innerHTML = '';
+    content.innerHTML = html;
+    document.getElementById('dupCheckModal').classList.add('show');
+}
+function closeDupCheckModal() { document.getElementById('dupCheckModal').classList.remove('show'); }
+
+// ==================== Devices ====================
+async function onProjectFilterChange() {
+    const project_id = document.getElementById('filterProject').value;
+    // Load departments for this project
+    let url = API + '/api/departments?';
+    if (project_id) url += `project_id=${project_id}`;
+    const res = await fetch(url);
+    const depts = await res.json();
+    document.getElementById('filterDept').innerHTML = '<option value="">全部单位</option>' +
+        depts.map(d => `<option value="${d.id}">${d.name}</option>`).join('');
+    loadDevices();
+}
+
+async function loadDevices() {
+    const project_id = document.getElementById('filterProject').value;
+    const dept_id = document.getElementById('filterDept').value;
+    const keyword = document.getElementById('filterKeyword').value;
+    let url = API + '/api/devices?';
+    if (project_id) url += `project_id=${project_id}&`;
+    if (dept_id) url += `department_id=${dept_id}&`;
+    if (keyword) url += `keyword=${encodeURIComponent(keyword)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const tbody = document.getElementById('deviceTable');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="11" class="empty"><div class="icon">📭</div>暂无设备数据</td></tr>'; return; }
+    tbody.innerHTML = data.map(d => `
+        <tr>
+            <td>${d.id}</td>
+            <td>${d.project_name || '-'}</td>
+            <td>${d.department_name || '-'}</td>
+            <td><strong>${d.user_name}</strong></td>
+            <td>${d.user_phone || '-'}</td>
+            <td title="${d.computer_name||''}">${d.computer_name || '-'}</td>
+            <td><code>${d.ip_address || '-'}</code></td>
+            <td title="${d.mac_address||''}"><code>${(d.mac_address||'-').substring(0,17)}</code></td>
+            <td>${d.dhcp_enabled === '是' ? '<span class="badge badge-dhcp">DHCP</span>' : d.dhcp_enabled === '否' ? '<span class="badge badge-static">静态</span>' : '-'}</td>
+            <td>${d.collected_at ? new Date(d.collected_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="viewDevice(${d.id})">详情</button>
+                <button class="btn btn-warning btn-sm" onclick='editDevice(${JSON.stringify(d)})'>编辑</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteDevice(${d.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function exportDevices(format) {
+    const project_id = document.getElementById('filterProject').value;
+    const dept_id = document.getElementById('filterDept').value;
+    const keyword = document.getElementById('filterKeyword').value;
+    let url = API + `/api/devices/export?format=${format}`;
+    if (project_id) url += `&project_id=${project_id}`;
+    if (dept_id) url += `&department_id=${dept_id}`;
+    if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+    window.open(url, '_blank');
+    showToast(`正在导出 ${format.toUpperCase()} 文件...`, 'info');
+}
+
+async function viewDevice(id) {
+    const res = await fetch(API + '/api/devices');
+    const data = await res.json();
+    const d = data.find(item => item.id === id);
+    if (!d) return;
+    const fields = [
+        ['所属项目', d.project_name], ['所属单位', d.department_name],
+        ['使用人', d.user_name], ['联系电话', d.user_phone],
+        ['安装位置', d.user_position], ['电脑名称', d.computer_name],
+        ['IP 地址', d.ip_address], ['MAC 地址', d.mac_address],
+        ['自动获取IP', d.dhcp_enabled], ['子网掩码', d.subnet_mask],
+        ['默认网关', d.gateway], ['DNS 服务器', d.dns_servers],
+        ['操作系统', d.os_info], ['CPU', d.cpu_info],
+        ['内存', d.ram_info], ['硬盘', d.disk_info],
+        ['主板', d.motherboard_info], ['显卡', d.gpu_info],
+        ['网卡', d.network_adapter],
+        ['采集时间', d.collected_at ? new Date(d.collected_at).toLocaleString('zh-CN') : '-'],
+    ];
+    document.getElementById('detailContent').innerHTML = fields.map(([k, v]) =>
+        `<div class="detail-item"><div class="key">${k}</div><div class="val">${v || '-'}</div></div>`
+    ).join('');
+    document.getElementById('detailModal').classList.add('show');
+}
+function closeDetailModal() { document.getElementById('detailModal').classList.remove('show'); }
+
+async function editDevice(d) {
+    document.getElementById('editDeviceId').value = d.id;
+    document.getElementById('editUserName').value = d.user_name || '';
+    document.getElementById('editUserPhone').value = d.user_phone || '';
+    document.getElementById('editUserPosition').value = d.user_position || '';
+    document.getElementById('editComputerName').value = d.computer_name || '';
+    document.getElementById('editIpAddress').value = d.ip_address || '';
+    document.getElementById('editMacAddress').value = d.mac_address || '';
+    document.getElementById('editDhcpEnabled').value = d.dhcp_enabled || '未知';
+    document.getElementById('editSubnetMask').value = d.subnet_mask || '';
+    document.getElementById('editGateway').value = d.gateway || '';
+    document.getElementById('editDnsServers').value = d.dns_servers || '';
+    document.getElementById('editNetworkAdapter').value = d.network_adapter || '';
+    document.getElementById('editOsInfo').value = d.os_info || '';
+    document.getElementById('editCpuInfo').value = d.cpu_info || '';
+    document.getElementById('editRamInfo').value = d.ram_info || '';
+    document.getElementById('editDiskInfo').value = d.disk_info || '';
+    document.getElementById('editMotherboardInfo').value = d.motherboard_info || '';
+    document.getElementById('editGpuInfo').value = d.gpu_info || '';
+
+    // Load departments for the dropdown
+    const res = await fetch(API + '/api/departments');
+    const depts = await res.json();
+    document.getElementById('editDeptId').innerHTML = depts.map(dept =>
+        `<option value="${dept.id}" ${dept.id === d.department_id ? 'selected' : ''}>${dept.project_name || ''} - ${dept.name}</option>`
+    ).join('');
+
+    document.getElementById('editModal').classList.add('show');
+}
+function closeEditModal() { document.getElementById('editModal').classList.remove('show'); }
+
+async function saveDevice() {
+    const id = document.getElementById('editDeviceId').value;
+    const body = {
+        department_id: parseInt(document.getElementById('editDeptId').value),
+        user_name: document.getElementById('editUserName').value.trim(),
+        user_phone: document.getElementById('editUserPhone').value.trim(),
+        user_position: document.getElementById('editUserPosition').value.trim(),
+        computer_name: document.getElementById('editComputerName').value.trim(),
+        ip_address: document.getElementById('editIpAddress').value.trim(),
+        mac_address: document.getElementById('editMacAddress').value.trim(),
+        dhcp_enabled: document.getElementById('editDhcpEnabled').value,
+        subnet_mask: document.getElementById('editSubnetMask').value.trim(),
+        gateway: document.getElementById('editGateway').value.trim(),
+        dns_servers: document.getElementById('editDnsServers').value.trim(),
+        network_adapter: document.getElementById('editNetworkAdapter').value.trim(),
+        os_info: document.getElementById('editOsInfo').value.trim(),
+        cpu_info: document.getElementById('editCpuInfo').value.trim(),
+        ram_info: document.getElementById('editRamInfo').value.trim(),
+        disk_info: document.getElementById('editDiskInfo').value.trim(),
+        motherboard_info: document.getElementById('editMotherboardInfo').value.trim(),
+        gpu_info: document.getElementById('editGpuInfo').value.trim(),
+    };
+    const res = await fetch(API + `/api/devices/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (res.ok) { showToast('保存成功', 'success'); closeEditModal(); loadDevices(); }
+    else { showToast(data.error || '保存失败', 'error'); }
+}
+
+async function deleteDevice(id) {
+    if (!confirm('确定删除该设备记录？')) return;
+    await fetch(API + `/api/devices/${id}`, { method: 'DELETE' });
+    showToast('删除成功', 'success'); loadDevices();
+}
+
+// ==================== Logs ====================
+let logCurrentPage = 1;
+
+async function loadLogTypes() {
+    const res = await fetch(API + '/api/logs/types');
+    const types = await res.json();
+    const sel = document.getElementById('filterLogType');
+    const currentVal = sel.value;
+    sel.innerHTML = '<option value="">全部类型</option>' + types.map(t => {
+        const label = {
+            'DEVICE_SUBMIT': '设备提交',
+            'DUPLICATE_WARNING': '重复警告',
+            'DUPLICATE_CONFIRMED': '重复确认',
+            'DEVICE_EDIT': '设备编辑',
+            'DEVICE_DELETE': '设备删除',
+            'USER_LOGIN': '用户登录',
+            'USER_ADD': '用户添加',
+            'DEPT_IMPORT': '单位导入',
+            'DEPT_EDIT': '单位编辑',
+            'DEPT_DELETE': '单位删除',
+        }[t] || t;
+        return `<option value="${t}">${label}</option>`;
+    }).join('');
+    if (currentVal) sel.value = currentVal;
+}
+
+async function loadLogs(page) {
+    if (page) logCurrentPage = page;
+    const log_type = document.getElementById('filterLogType').value;
+    const keyword = document.getElementById('filterLogKeyword').value;
+    let url = API + `/api/logs?page=${logCurrentPage}&per_page=30`;
+    if (log_type) url += `&type=${encodeURIComponent(log_type)}`;
+    if (keyword) url += `&keyword=${encodeURIComponent(keyword)}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const tbody = document.getElementById('logTable');
+    if (!data.data || !data.data.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty"><div class="icon">📭</div>暂无日志</td></tr>';
+        document.getElementById('logPagination').innerHTML = '';
+        return;
+    }
+    tbody.innerHTML = data.data.map(l => {
+        const typeLabel = {
+            'DEVICE_SUBMIT': '设备提交',
+            'DUPLICATE_WARNING': '重复警告',
+            'DUPLICATE_CONFIRMED': '重复确认',
+            'DEVICE_EDIT': '设备编辑',
+            'DEVICE_DELETE': '设备删除',
+            'USER_LOGIN': '用户登录',
+            'USER_ADD': '用户添加',
+            'DEPT_IMPORT': '单位导入',
+            'DEPT_EDIT': '单位编辑',
+            'DEPT_DELETE': '单位删除',
+        }[l.log_type] || l.log_type;
+        const badgeClass = {
+            'DEVICE_SUBMIT': 'badge-success',
+            'DUPLICATE_WARNING': 'badge-warning',
+            'DUPLICATE_CONFIRMED': 'badge-danger',
+            'DEVICE_EDIT': 'badge-info',
+            'DEVICE_DELETE': 'badge-danger',
+            'USER_LOGIN': 'badge-info',
+            'USER_ADD': 'badge-info',
+            'DEPT_IMPORT': 'badge-success',
+            'DEPT_EDIT': 'badge-info',
+            'DEPT_DELETE': 'badge-danger',
+        }[l.log_type] || 'badge-info';
+        return `
+            <tr>
+                <td>${l.id}</td>
+                <td><span class="badge ${badgeClass}">${typeLabel}</span></td>
+                <td>${l.content || '-'}</td>
+                <td title="${escapeAttr(l.detail || '')}" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.detail || '-'}</td>
+                <td>${l.operator || '-'}</td>
+                <td><code>${l.ip_address || '-'}</code></td>
+                <td>${l.created_at ? new Date(l.created_at).toLocaleString('zh-CN') : '-'}</td>
+                <td><button class="btn btn-danger btn-sm" onclick="deleteLog(${l.id})">删除</button></td>
+            </tr>`;
+    }).join('');
+
+    // Pagination
+    const totalPages = Math.ceil(data.total / data.per_page);
+    let pagHtml = '';
+    if (totalPages > 1) {
+        pagHtml += `<button class="btn btn-sm ${logCurrentPage <= 1 ? '' : 'btn-outline'}" ${logCurrentPage <= 1 ? 'disabled' : `onclick="loadLogs(${logCurrentPage - 1})"`}>上一页</button>`;
+        pagHtml += `<span style="font-size:13px;color:#666;">第 ${logCurrentPage} / ${totalPages} 页 (共 ${data.total} 条)</span>`;
+        pagHtml += `<button class="btn btn-sm ${logCurrentPage >= totalPages ? '' : 'btn-outline'}" ${logCurrentPage >= totalPages ? 'disabled' : `onclick="loadLogs(${logCurrentPage + 1})"`}>下一页</button>`;
+    } else {
+        pagHtml = `<span style="font-size:13px;color:#666;">共 ${data.total} 条日志</span>`;
+    }
+    document.getElementById('logPagination').innerHTML = pagHtml;
+}
+
+async function deleteLog(id) {
+    if (!confirm('确定删除该日志？')) return;
+    await fetch(API + `/api/logs/${id}`, { method: 'DELETE' });
+    showToast('删除成功', 'success');
+    loadLogs();
+}
+
+async function clearAllLogs() {
+    if (!confirm('⚠️ 确定清空所有日志？此操作不可恢复！')) return;
+    const res = await fetch(API + '/api/logs/clear', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({})
+    });
+    const data = await res.json();
+    showToast(data.message || '已清空', 'success');
+    loadLogs();
+}
+
+// ==================== API Keys ====================
+async function loadApiKeys() {
+    const res = await fetch(API + '/api/api-keys');
+    const data = await res.json();
+    const tbody = document.getElementById('apiKeyTable');
+    if (!data.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty"><div class="icon">🔑</div>暂无 API Key</td></tr>'; return; }
+    tbody.innerHTML = data.map(k => `
+        <tr>
+            <td>${k.id}</td>
+            <td><strong>${k.name}</strong></td>
+            <td><code style="font-size:12px;">${k.api_key_masked}</code></td>
+            <td><span class="badge ${k.permissions.includes('write') ? 'badge-info' : 'badge-success'}">${k.permissions}</span></td>
+            <td>${k.is_active ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">禁用</span>'}</td>
+            <td>${k.description || '-'}</td>
+            <td>${k.last_used_at ? new Date(k.last_used_at).toLocaleString('zh-CN') : '<span style="color:#999">未使用</span>'}</td>
+            <td>${k.created_at ? new Date(k.created_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>
+                <button class="btn btn-sm ${k.is_active ? 'btn-warning' : 'btn-success'}" onclick="toggleApiKey(${k.id}, ${k.is_active})">${k.is_active ? '禁用' : '启用'}</button>
+                <button class="btn btn-outline btn-sm" onclick="regenerateApiKey(${k.id})">重置</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteApiKey(${k.id})">删除</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function showCreateApiKey() { document.getElementById('createApiKeyForm').style.display = 'block'; }
+
+async function createApiKey() {
+    const name = document.getElementById('apiKeyName').value.trim();
+    if (!name) { alert('请输入 API Key 名称'); return; }
+    const res = await fetch(API + '/api/api-keys', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            name,
+            description: document.getElementById('apiKeyDesc').value.trim(),
+            permissions: document.getElementById('apiKeyPerms').value,
+            expires_at: document.getElementById('apiKeyExpires').value || null
+        })
+    });
+    const data = await res.json();
+    if (res.ok) {
+        showToast('创建成功', 'success');
+        document.getElementById('createApiKeyForm').style.display = 'none';
+        // 显示新生成的 key
+        document.getElementById('newKeyDisplay').style.display = 'block';
+        document.getElementById('newKeyValue').textContent = data.api_key;
+        document.getElementById('apiKeyName').value = '';
+        document.getElementById('apiKeyDesc').value = '';
+        document.getElementById('apiKeyExpires').value = '';
+        loadApiKeys();
+    } else {
+        showToast(data.error || '创建失败', 'error');
+    }
+}
+
+function copyNewKey() {
+    const key = document.getElementById('newKeyValue').textContent;
+    navigator.clipboard.writeText(key).then(() => {
+        showToast('已复制到剪贴板', 'success');
+    }).catch(() => {
+        // fallback
+        const ta = document.createElement('textarea');
+        ta.value = key;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast('已复制到剪贴板', 'success');
+    });
+}
+
+async function toggleApiKey(id, currentActive) {
+    const res = await fetch(API + `/api/api-keys/${id}`, {
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ is_active: !currentActive })
+    });
+    if (res.ok) {
+        showToast(!currentActive ? '已启用' : '已禁用', 'success');
+        loadApiKeys();
+    } else {
+        const data = await res.json();
+        showToast(data.error || '操作失败', 'error');
+    }
+}
+
+async function regenerateApiKey(id) {
+    if (!confirm('⚠️ 重新生成后，旧 API Key 将立即失效！确定继续？')) return;
+    const res = await fetch(API + `/api/api-keys/${id}/regenerate`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'}
+    });
+    const data = await res.json();
+    if (res.ok) {
+        document.getElementById('newKeyDisplay').style.display = 'block';
+        document.getElementById('newKeyValue').textContent = data.api_key;
+        showToast('已重新生成', 'success');
+        loadApiKeys();
+    } else {
+        showToast(data.error || '操作失败', 'error');
+    }
+}
+
+async function deleteApiKey(id) {
+    if (!confirm('确定删除该 API Key？')) return;
+    await fetch(API + `/api/api-keys/${id}`, { method: 'DELETE' });
+    showToast('删除成功', 'success');
+    loadApiKeys();
+}
+
+// Init
+checkSession();
+loadProjectSelects();
+
+// 会话检查
+async function checkSession() {
+    try {
+        const res = await fetch(API + '/api/current-user');
+        if (res.ok) {
+            const user = await res.json();
+            document.getElementById('currentUser').textContent = 
+                `👤 ${user.display_name || user.username}` + 
+                (user.role === 'admin' ? ' (管理员)' : '');
+            // 正常加载
+            loadStats();
+        } else {
+            // 未登录，跳转登录页
+            window.location.href = '/login';
+        }
+    } catch(e) {
+        // 网络错误，也跳转
+        window.location.href = '/login';
+    }
+}
+
+// 登出
+async function doLogout() {
+    if (!confirm('确定要退出登录吗？')) return;
+    try {
+        await fetch(API + '/api/logout', { method: 'POST' });
+    } catch(e) {}
+    window.location.href = '/login';
+}
+</script>
+</body>
+</html>

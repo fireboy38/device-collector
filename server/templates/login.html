@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 - 设备信息采集器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #0a0e27;
+        }
+
+        /* ===== 动态背景 ===== */
+        .bg-layer {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+        }
+
+        /* 渐变动画背景 */
+        .bg-gradient {
+            background: linear-gradient(-45deg, #0a0e27, #1a1a4e, #0d2137, #162447);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
+        }
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* 网格线 */
+        .bg-grid {
+            background-image: 
+                linear-gradient(rgba(100, 180, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(100, 180, 255, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            animation: gridMove 20s linear infinite;
+        }
+        @keyframes gridMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 60px 60px; }
+        }
+
+        /* 光斑 */
+        .glow-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.15;
+            animation: orbFloat 20s ease-in-out infinite;
+        }
+        .glow-orb-1 {
+            width: 500px; height: 500px;
+            background: #4f8cff;
+            top: -10%; left: -5%;
+            animation-delay: 0s;
+        }
+        .glow-orb-2 {
+            width: 400px; height: 400px;
+            background: #a855f7;
+            bottom: -15%; right: -5%;
+            animation-delay: -7s;
+        }
+        .glow-orb-3 {
+            width: 300px; height: 300px;
+            background: #06b6d4;
+            top: 50%; left: 60%;
+            animation-delay: -14s;
+        }
+        @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -40px) scale(1.1); }
+            66% { transform: translate(-20px, 30px) scale(0.9); }
+        }
+
+        /* 粒子 */
+        .particles {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+        }
+        .particle {
+            position: absolute;
+            width: 2px; height: 2px;
+            background: rgba(150, 200, 255, 0.6);
+            border-radius: 50%;
+            animation: particleRise linear infinite;
+        }
+        @keyframes particleRise {
+            0% { transform: translateY(100vh) scale(0); opacity: 0; }
+            10% { opacity: 1; }
+            90% { opacity: 1; }
+            100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+        }
+
+        /* ===== 登录卡片 ===== */
+        .login-wrapper {
+            position: relative;
+            z-index: 10;
+            width: 440px;
+            max-width: 92vw;
+            animation: cardEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        @keyframes cardEnter {
+            from { opacity: 0; transform: translateY(40px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Logo 区域 */
+        .login-brand {
+            text-align: center;
+            margin-bottom: 32px;
+            animation: brandEnter 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+        }
+        @keyframes brandEnter {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .brand-icon {
+            width: 64px; height: 64px;
+            margin: 0 auto 16px;
+            background: linear-gradient(135deg, #4f8cff, #a855f7);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            box-shadow: 0 8px 32px rgba(79, 140, 255, 0.3);
+            animation: iconPulse 3s ease-in-out infinite;
+            position: relative;
+        }
+        .brand-icon::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, #4f8cff, #a855f7);
+            z-index: -1;
+            opacity: 0.3;
+            filter: blur(8px);
+        }
+        @keyframes iconPulse {
+            0%, 100% { box-shadow: 0 8px 32px rgba(79, 140, 255, 0.3); }
+            50% { box-shadow: 0 8px 48px rgba(79, 140, 255, 0.5); }
+        }
+
+        .login-brand h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #f0f4ff;
+            letter-spacing: 1px;
+        }
+        .login-brand p {
+            font-size: 13px;
+            color: rgba(160, 180, 220, 0.8);
+            margin-top: 4px;
+        }
+
+        /* 玻璃卡片 */
+        .login-card {
+            background: rgba(15, 20, 50, 0.65);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid rgba(100, 160, 255, 0.1);
+            border-radius: 20px;
+            padding: 36px 32px;
+            box-shadow: 
+                0 24px 80px rgba(0, 0, 0, 0.4),
+                inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            animation: cardEnter2 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.2s both;
+        }
+        @keyframes cardEnter2 {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 错误提示 */
+        .error-msg {
+            display: none;
+            padding: 12px 16px;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #fca5a5;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            align-items: center;
+            gap: 8px;
+            animation: shakeIn 0.5s ease;
+        }
+        .error-msg.show { display: flex; }
+        @keyframes shakeIn {
+            0% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+            100% { transform: translateX(0); }
+        }
+
+        /* 锁定提示 */
+        .lock-msg {
+            display: none;
+            padding: 12px 16px;
+            background: rgba(251, 191, 36, 0.12);
+            border: 1px solid rgba(251, 191, 36, 0.25);
+            color: #fde68a;
+            border-radius: 12px;
+            font-size: 13px;
+            margin-bottom: 20px;
+            align-items: center;
+            gap: 8px;
+        }
+        .lock-msg.show { display: flex; }
+
+        /* 表单 */
+        .form-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: rgba(160, 180, 220, 0.9);
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        .input-wrap {
+            position: relative;
+        }
+        .input-wrap input {
+            width: 100%;
+            padding: 13px 16px;
+            padding-left: 44px;
+            background: rgba(10, 15, 40, 0.6);
+            border: 1.5px solid rgba(100, 160, 255, 0.12);
+            border-radius: 12px;
+            font-size: 15px;
+            color: #e8ecf4;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        .input-wrap input::placeholder {
+            color: rgba(120, 140, 180, 0.5);
+        }
+        .input-wrap input:focus {
+            border-color: rgba(79, 140, 255, 0.5);
+            background: rgba(10, 15, 40, 0.8);
+            box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        .input-icon {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 16px;
+            opacity: 0.5;
+            pointer-events: none;
+            transition: opacity 0.3s;
+        }
+        .input-wrap input:focus ~ .input-icon {
+            opacity: 0.8;
+        }
+
+        /* 密码可见切换 */
+        .toggle-pwd {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: rgba(160, 180, 220, 0.5);
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+        .toggle-pwd:hover { color: rgba(160, 180, 220, 0.9); }
+
+        /* 密码强度指示器（修改密码时显示） */
+        .pwd-strength {
+            display: none;
+            margin-top: 8px;
+        }
+        .pwd-strength.show { display: block; }
+        .pwd-strength-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 4px;
+        }
+        .pwd-strength-fill {
+            height: 100%;
+            border-radius: 2px;
+            width: 0%;
+            transition: all 0.4s ease;
+        }
+        .pwd-strength-text {
+            font-size: 11px;
+            color: rgba(160, 180, 220, 0.7);
+            display: flex;
+            justify-content: space-between;
+        }
+
+        /* 记住 & 选项 */
+        .options-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            font-size: 13px;
+        }
+        .options-row label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            color: rgba(160, 180, 220, 0.8);
+        }
+        .options-row input[type="checkbox"] {
+            width: 16px; height: 16px;
+            accent-color: #4f8cff;
+        }
+
+        /* 登录按钮 */
+        .login-btn {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #4f8cff, #7c5cfc);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            position: relative;
+            overflow: hidden;
+        }
+        .login-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .login-btn:hover::before { opacity: 1; }
+        .login-btn:hover {
+            box-shadow: 0 8px 32px rgba(79, 140, 255, 0.35);
+            transform: translateY(-1px);
+        }
+        .login-btn:active { transform: translateY(0) scale(0.98); }
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+        .login-btn .spinner {
+            display: none;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+        .login-btn.loading .spinner { display: block; }
+        .login-btn.loading .btn-text { display: none; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* 剩余尝试次数 */
+        .attempts-left {
+            text-align: center;
+            margin-top: 12px;
+            font-size: 12px;
+            color: rgba(251, 191, 36, 0.8);
+            display: none;
+        }
+        .attempts-left.show { display: block; }
+
+        /* 底部信息 */
+        .login-footer {
+            text-align: center;
+            margin-top: 28px;
+            font-size: 12px;
+            color: rgba(120, 140, 180, 0.5);
+            animation: fadeIn 1s ease 0.6s both;
+        }
+        .login-footer a {
+            color: rgba(79, 140, 255, 0.7);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+        .login-footer a:hover { color: rgba(79, 140, 255, 1); }
+
+        /* Demo 提示 */
+        .demo-info {
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: rgba(79, 140, 255, 0.06);
+            border: 1px solid rgba(79, 140, 255, 0.1);
+            border-radius: 10px;
+            font-size: 12px;
+            color: rgba(160, 180, 220, 0.7);
+            line-height: 1.8;
+            animation: fadeIn 1s ease 0.4s both;
+        }
+        .demo-info strong { color: #7cacff; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        /* 安全图标行 */
+        .security-badge {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 16px;
+            font-size: 11px;
+            color: rgba(80, 200, 120, 0.6);
+        }
+
+        /* 响应式 */
+        @media (max-width: 480px) {
+            .login-card { padding: 28px 20px; }
+            .login-wrapper { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- 动态背景层 -->
+<div class="bg-layer bg-gradient"></div>
+<div class="bg-layer bg-grid"></div>
+<div class="glow-orb glow-orb-1"></div>
+<div class="glow-orb glow-orb-2"></div>
+<div class="glow-orb glow-orb-3"></div>
+<div class="particles" id="particles"></div>
+
+<!-- 登录主体 -->
+<div class="login-wrapper">
+    <div class="login-brand">
+        <div class="brand-icon">🖥️</div>
+        <h1>设备信息采集器</h1>
+        <p>管理端登录</p>
+    </div>
+
+    <div class="login-card">
+        <div class="error-msg" id="errorMsg">
+            <span>⚠️</span>
+            <span id="errorText">用户名或密码错误</span>
+        </div>
+
+        <div class="lock-msg" id="lockMsg">
+            <span>🔒</span>
+            <span id="lockText">登录已锁定，请稍后再试</span>
+        </div>
+
+        <form id="loginForm" onsubmit="return doLogin(event)">
+            <div class="form-group">
+                <label>用户名</label>
+                <div class="input-wrap">
+                    <input type="text" id="username" placeholder="请输入用户名" autocomplete="username" autofocus>
+                    <span class="input-icon">👤</span>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>密码</label>
+                <div class="input-wrap">
+                    <input type="password" id="password" placeholder="请输入密码" autocomplete="current-password">
+                    <span class="input-icon">🔑</span>
+                    <button type="button" class="toggle-pwd" id="togglePwd" onclick="togglePassword()">👁️</button>
+                </div>
+                <div class="pwd-strength" id="pwdStrength">
+                    <div class="pwd-strength-bar">
+                        <div class="pwd-strength-fill" id="pwdStrengthFill"></div>
+                    </div>
+                    <div class="pwd-strength-text">
+                        <span id="pwdStrengthLabel">密码强度</span>
+                        <span id="pwdStrengthScore"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="options-row">
+                <label>
+                    <input type="checkbox" id="rememberMe" checked> 记住登录状态
+                </label>
+            </div>
+            <button type="submit" class="login-btn" id="loginBtn">
+                <span class="spinner"></span>
+                <span class="btn-text">登 录</span>
+            </button>
+        </form>
+
+        <div class="attempts-left" id="attemptsLeft"></div>
+
+        <div class="demo-info">
+            💡 默认管理员账号：<strong>admin</strong> / <strong>123456</strong>
+        </div>
+
+        <div class="security-badge">
+            🔐 通信加密 · 登录防护 · 操作审计
+        </div>
+    </div>
+
+    <div class="login-footer">
+        设备信息采集器 · <a href="/api-docs">API 文档</a>
+    </div>
+</div>
+
+<script>
+// ===== 生成粒子 =====
+(function createParticles() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 40; i++) {
+        const p = document.createElement('div');
+        p.className = 'particle';
+        p.style.left = Math.random() * 100 + '%';
+        p.style.width = p.style.height = (Math.random() * 3 + 1) + 'px';
+        p.style.animationDuration = (Math.random() * 15 + 10) + 's';
+        p.style.animationDelay = (Math.random() * 15) + 's';
+        p.style.opacity = Math.random() * 0.5 + 0.2;
+        container.appendChild(p);
+    }
+})();
+
+// ===== 密码可见切换 =====
+function togglePassword() {
+    const inp = document.getElementById('password');
+    const btn = document.getElementById('togglePwd');
+    if (inp.type === 'password') {
+        inp.type = 'text';
+        btn.textContent = '🙈';
+    } else {
+        inp.type = 'password';
+        btn.textContent = '👁️';
+    }
+}
+
+// ===== 密码强度检测 =====
+const passwordInput = document.getElementById('password');
+const strengthBar = document.getElementById('pwdStrength');
+const strengthFill = document.getElementById('pwdStrengthFill');
+const strengthLabel = document.getElementById('pwdStrengthLabel');
+const strengthScore = document.getElementById('pwdStrengthScore');
+
+// 是否显示密码强度（只在输入时检测，登录页不做强制限制）
+let strengthShown = false;
+
+passwordInput.addEventListener('input', function() {
+    const pwd = this.value;
+    if (!pwd) {
+        strengthBar.classList.remove('show');
+        strengthShown = false;
+        return;
+    }
+    if (!strengthShown) {
+        strengthBar.classList.add('show');
+        strengthShown = true;
+    }
+    
+    const result = checkPasswordStrength(pwd);
+    strengthFill.style.width = result.percent + '%';
+    strengthFill.style.background = result.color;
+    strengthLabel.textContent = result.label;
+    strengthLabel.style.color = result.color;
+    strengthScore.textContent = result.score + '/5';
+    strengthScore.style.color = result.color;
+});
+
+function checkPasswordStrength(pwd) {
+    let score = 0;
+    if (pwd.length >= 6) score++;
+    if (pwd.length >= 10) score++;
+    if (/[a-z]/.test(pwd) && /[A-Z]/.test(pwd)) score++;
+    if (/\d/.test(pwd)) score++;
+    if (/[^a-zA-Z0-9]/.test(pwd)) score++;
+    
+    const levels = [
+        { label: '非常弱', color: '#ef4444', percent: 10 },
+        { label: '弱', color: '#f97316', percent: 25 },
+        { label: '一般', color: '#eab308', percent: 50 },
+        { label: '较强', color: '#22c55e', percent: 75 },
+        { label: '强', color: '#10b981', percent: 90 },
+        { label: '非常强', color: '#06b6d4', percent: 100 },
+    ];
+    return { ...levels[score], score: score };
+}
+
+// ===== 登录逻辑 =====
+const urlParams = new URLSearchParams(window.location.search);
+if (urlParams.get('error')) {
+    showError(decodeURIComponent(urlParams.get('error')));
+}
+
+// 保存的用户名自动填充
+const savedUsername = localStorage.getItem('dc_login_username');
+if (savedUsername) {
+    document.getElementById('username').value = savedUsername;
+    document.getElementById('rememberMe').checked = true;
+    document.getElementById('password').focus();
+}
+
+async function doLogin(e) {
+    e.preventDefault();
+    
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const rememberMe = document.getElementById('rememberMe').checked;
+    const btn = document.getElementById('loginBtn');
+    
+    if (!username || !password) {
+        showError('请输入用户名和密码');
+        return false;
+    }
+    
+    if (rememberMe) {
+        localStorage.setItem('dc_login_username', username);
+    } else {
+        localStorage.removeItem('dc_login_username');
+    }
+    
+    btn.classList.add('loading');
+    btn.disabled = true;
+    hideError();
+    hideLock();
+    
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok) {
+            // 登录成功 - 卡片消失动画
+            document.querySelector('.login-card').style.transition = 'all 0.5s ease';
+            document.querySelector('.login-card').style.transform = 'scale(0.95)';
+            document.querySelector('.login-card').style.opacity = '0';
+            setTimeout(() => { window.location.href = '/'; }, 400);
+        } else {
+            // 登录失败
+            if (data.locked) {
+                showLock(data.error, data.locked_until);
+            } else {
+                showError(data.error || '登录失败');
+                // 显示剩余尝试次数
+                if (data.attempts_left !== undefined) {
+                    showAttemptsLeft(data.attempts_left);
+                }
+            }
+        }
+    } catch (err) {
+        showError('网络错误，无法连接到服务器');
+    } finally {
+        btn.classList.remove('loading');
+        btn.disabled = false;
+    }
+    
+    return false;
+}
+
+function showError(msg) {
+    document.getElementById('errorText').textContent = msg;
+    document.getElementById('errorMsg').classList.add('show');
+    document.getElementById('lockMsg').classList.remove('show');
+}
+
+function hideError() {
+    document.getElementById('errorMsg').classList.remove('show');
+}
+
+function showLock(msg, lockedUntil) {
+    document.getElementById('errorMsg').classList.remove('show');
+    document.getElementById('lockText').textContent = msg;
+    document.getElementById('lockMsg').classList.add('show');
+    
+    // 倒计时
+    if (lockedUntil) {
+        const endTime = new Date(lockedUntil).getTime();
+        const lockEl = document.getElementById('lockText');
+        const interval = setInterval(() => {
+            const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+            if (remaining <= 0) {
+                clearInterval(interval);
+                hideLock();
+                return;
+            }
+            lockEl.textContent = `账户已锁定，请 ${remaining} 秒后重试`;
+        }, 1000);
+    }
+}
+
+function hideLock() {
+    document.getElementById('lockMsg').classList.remove('show');
+}
+
+function showAttemptsLeft(count) {
+    const el = document.getElementById('attemptsLeft');
+    el.textContent = `⚠️ 剩余尝试次数: ${count} 次`;
+    el.classList.add('show');
+    if (count >= 3) {
+        setTimeout(() => { el.classList.remove('show'); }, 5000);
+    }
+}
+
+// 回车提交
+document.getElementById('password').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+        document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+    }
+});
+</script>
+
+</body>
+</html>

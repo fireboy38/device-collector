@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 文档 - 设备信息采集器</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --primary: #1a73e8; --primary-dark: #1557b0;
+            --bg: #f5f7fa; --card: #ffffff;
+            --text: #333; --text-light: #666; --border: #e0e4e8;
+            --success: #34a853; --danger: #ea4335; --warning: #fbbc04;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+
+        .header { background: linear-gradient(135deg, #1a73e8 0%, #0d47a1 100%); color: white; padding: 30px 40px; }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .header p { font-size: 14px; opacity: 0.85; margin-top: 6px; }
+        .header a { color: white; opacity: 0.9; }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 30px 40px; }
+
+        .section { margin-bottom: 40px; }
+        .section h2 { font-size: 20px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 2px solid var(--primary); color: var(--primary); }
+        .section h3 { font-size: 16px; margin: 20px 0 10px; color: var(--primary-dark); }
+
+        .card { background: var(--card); border-radius: 10px; padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); margin-bottom: 16px; }
+
+        .endpoint { border-left: 4px solid var(--primary); padding: 16px 20px; margin-bottom: 12px; background: #f8f9fb; border-radius: 0 8px 8px 0; }
+        .endpoint.method-get { border-left-color: var(--success); }
+        .endpoint.method-post { border-left-color: var(--primary); }
+        .endpoint.method-put { border-left-color: var(--warning); }
+        .endpoint.method-delete { border-left-color: var(--danger); }
+
+        .method { display: inline-block; padding: 2px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; color: white; margin-right: 8px; }
+        .method.get { background: var(--success); }
+        .method.post { background: var(--primary); }
+        .method.put { background: var(--warning); color: #333; }
+        .method.delete { background: var(--danger); }
+
+        .endpoint .url { font-family: 'Consolas', 'Monaco', monospace; font-size: 14px; font-weight: 500; }
+        .endpoint .desc { font-size: 13px; color: var(--text-light); margin-top: 4px; }
+
+        code { background: #f0f0f0; padding: 2px 6px; border-radius: 3px; font-size: 13px; font-family: 'Consolas', 'Monaco', monospace; }
+        pre { background: #1e1e2e; color: #cdd6f4; padding: 16px 20px; border-radius: 8px; overflow-x: auto; font-size: 13px; line-height: 1.6; margin: 12px 0; }
+        pre .key { color: #89b4fa; }
+        pre .str { color: #a6e3a1; }
+        pre .num { color: #fab387; }
+        pre .comment { color: #6c7086; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+        th { background: #f8f9fb; text-align: left; padding: 8px 12px; font-weight: 600; border-bottom: 2px solid var(--border); }
+        td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+        td code { background: #f0f0f0; padding: 1px 4px; border-radius: 3px; }
+
+        .note { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin: 12px 0; }
+        .note.info { background: #e8f0fe; border-left: 4px solid var(--primary); }
+        .note.warning { background: #fff3e0; border-left: 4px solid var(--warning); }
+        .note.success { background: #e8f5e9; border-left: 4px solid var(--success); }
+
+        .toc { background: var(--card); border-radius: 10px; padding: 20px 24px; margin-bottom: 30px; }
+        .toc h3 { margin-bottom: 12px; font-size: 15px; }
+        .toc ul { list-style: none; }
+        .toc li { margin-bottom: 6px; }
+        .toc a { color: var(--primary); text-decoration: none; font-size: 14px; }
+        .toc a:hover { text-decoration: underline; }
+        .toc ul ul { margin-left: 20px; margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>📖 API 文档</h1>
+    <p>设备信息采集器 RESTful API 接口文档 · <a href="/">← 返回管理端</a></p>
+</div>
+
+<div class="container">
+
+<div class="toc">
+    <h3>📑 目录</h3>
+    <ul>
+        <li><a href="#auth">认证方式</a></li>
+        <li><a href="#response">响应格式</a></li>
+        <li><a href="#devices">设备管理</a>
+            <ul>
+                <li><a href="#devices-list">获取设备列表</a></li>
+                <li><a href="#devices-get">获取设备详情</a></li>
+                <li><a href="#devices-create">创建设备记录</a></li>
+                <li><a href="#devices-update">更新设备记录</a></li>
+                <li><a href="#devices-delete">删除设备记录</a></li>
+                <li><a href="#devices-dup">查重检测</a></li>
+                <li><a href="#devices-export">导出设备</a></li>
+            </ul>
+        </li>
+        <li><a href="#projects">项目管理</a></li>
+        <li><a href="#departments">单位管理</a></li>
+        <li><a href="#stats">统计信息</a></li>
+        <li><a href="#errors">错误码说明</a></li>
+        <li><a href="#examples">调用示例</a></li>
+    </ul>
+</div>
+
+<!-- 认证 -->
+<div class="section" id="auth">
+    <h2>🔐 认证方式</h2>
+    <div class="card">
+        <p>所有 <code>/api/v1/</code> 接口均需要 API Key 认证。认证方式有两种：</p>
+
+        <h3>方式一：请求头（推荐）</h3>
+        <pre>X-API-Key: dc_your_api_key_here</pre>
+
+        <h3>方式二：查询参数</h3>
+        <pre>GET /api/v1/devices?api_key=dc_your_api_key_here</pre>
+
+        <div class="note warning">
+            ⚠️ API Key 相当于密码，请勿泄露。建议通过请求头传递，避免在 URL 中暴露。
+        </div>
+
+        <h3>权限说明</h3>
+        <table>
+            <thead><tr><th>权限</th><th>说明</th><th>可访问的接口</th></tr></thead>
+            <tbody>
+                <tr><td><code>read</code></td><td>只读</td><td>所有 GET 请求</td></tr>
+                <tr><td><code>write</code></td><td>读写</td><td>所有请求（包含 POST/PUT/DELETE）</td></tr>
+            </tbody>
+        </table>
+
+        <p style="margin-top:12px;">在 <a href="/">管理端 → 🔑 API 管理</a> 中创建和管理 API Key。</p>
+    </div>
+</div>
+
+<!-- 响应格式 -->
+<div class="section" id="response">
+    <h2>📦 响应格式</h2>
+    <div class="card">
+        <p>所有 V1 API 均使用统一的 JSON 响应格式：</p>
+        <pre>{
+    <span class="key">"code"</span>: <span class="num">200</span>,
+    <span class="key">"message"</span>: <span class="str">"success"</span>,
+    <span class="key">"data"</span>: { ... },
+    <span class="key">"timestamp"</span>: <span class="str">"2026-04-14T10:30:00"</span>
+}</pre>
+        <table>
+            <thead><tr><th>字段</th><th>类型</th><th>说明</th></tr></thead>
+            <tbody>
+                <tr><td><code>code</code></td><td>int</td><td>HTTP 状态码</td></tr>
+                <tr><td><code>message</code></td><td>string</td><td>响应消息</td></tr>
+                <tr><td><code>data</code></td><td>object/array</td><td>响应数据</td></tr>
+                <tr><td><code>timestamp</code></td><td>string</td><td>服务器时间戳</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 设备管理 -->
+<div class="section" id="devices">
+    <h2>💻 设备管理</h2>
+
+    <div class="endpoint method-get" id="devices-list">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/devices</span>
+        <div class="desc">获取设备列表，支持分页和筛选</div>
+    </div>
+    <div class="card">
+        <h3>查询参数</h3>
+        <table>
+            <thead><tr><th>参数</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+            <tbody>
+                <tr><td><code>project_id</code></td><td>int</td><td>否</td><td>按项目ID筛选</td></tr>
+                <tr><td><code>department_id</code></td><td>int</td><td>否</td><td>按单位ID筛选</td></tr>
+                <tr><td><code>keyword</code></td><td>string</td><td>否</td><td>关键词搜索（姓名/电脑名/IP）</td></tr>
+                <tr><td><code>page</code></td><td>int</td><td>否</td><td>页码，默认 1</td></tr>
+                <tr><td><code>per_page</code></td><td>int</td><td>否</td><td>每页数量，默认 20，最大 100</td></tr>
+            </tbody>
+        </table>
+        <h3>响应示例</h3>
+        <pre>{
+    <span class="key">"code"</span>: <span class="num">200</span>,
+    <span class="key">"message"</span>: <span class="str">"success"</span>,
+    <span class="key">"data"</span>: {
+        <span class="key">"items"</span>: [{ <span class="comment">/* 设备对象 */</span> }],
+        <span class="key">"total"</span>: <span class="num">150</span>,
+        <span class="key">"page"</span>: <span class="num">1</span>,
+        <span class="key">"per_page"</span>: <span class="num">20</span>,
+        <span class="key">"total_pages"</span>: <span class="num">8</span>
+    },
+    <span class="key">"timestamp"</span>: <span class="str">"2026-04-14T10:30:00"</span>
+}</pre>
+    </div>
+
+    <div class="endpoint method-get" id="devices-get">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/devices/:id</span>
+        <div class="desc">获取单个设备详情</div>
+    </div>
+    <div class="card">
+        <h3>路径参数</h3>
+        <table>
+            <thead><tr><th>参数</th><th>类型</th><th>说明</th></tr></thead>
+            <tbody><tr><td><code>id</code></td><td>int</td><td>设备ID</td></tr></tbody>
+        </table>
+    </div>
+
+    <div class="endpoint method-post" id="devices-create">
+        <span class="method post">POST</span>
+        <span class="url">/api/v1/devices</span>
+        <div class="desc">创建设备记录（需要 write 权限）</div>
+    </div>
+    <div class="card">
+        <h3>请求体 (JSON)</h3>
+        <table>
+            <thead><tr><th>字段</th><th>类型</th><th>必填</th><th>说明</th></tr></thead>
+            <tbody>
+                <tr><td><code>department_id</code></td><td>int</td><td>✅</td><td>所属单位ID</td></tr>
+                <tr><td><code>user_name</code></td><td>string</td><td>✅</td><td>使用人</td></tr>
+                <tr><td><code>user_phone</code></td><td>string</td><td></td><td>联系电话</td></tr>
+                <tr><td><code>user_position</code></td><td>string</td><td></td><td>安装位置</td></tr>
+                <tr><td><code>computer_name</code></td><td>string</td><td></td><td>电脑名称</td></tr>
+                <tr><td><code>ip_address</code></td><td>string</td><td></td><td>IP 地址</td></tr>
+                <tr><td><code>mac_address</code></td><td>string</td><td></td><td>MAC 地址</td></tr>
+                <tr><td><code>dhcp_enabled</code></td><td>string</td><td></td><td>DHCP (是/否)</td></tr>
+                <tr><td><code>os_info</code></td><td>string</td><td></td><td>操作系统</td></tr>
+                <tr><td><code>cpu_info</code></td><td>string</td><td></td><td>CPU</td></tr>
+                <tr><td><code>ram_info</code></td><td>string</td><td></td><td>内存</td></tr>
+                <tr><td><code>disk_info</code></td><td>string</td><td></td><td>硬盘</td></tr>
+                <tr><td><code>motherboard_info</code></td><td>string</td><td></td><td>主板</td></tr>
+                <tr><td><code>gpu_info</code></td><td>string</td><td></td><td>显卡</td></tr>
+                <tr><td><code>network_adapter</code></td><td>string</td><td></td><td>网卡</td></tr>
+                <tr><td><code>subnet_mask</code></td><td>string</td><td></td><td>子网掩码</td></tr>
+                <tr><td><code>gateway</code></td><td>string</td><td></td><td>默认网关</td></tr>
+                <tr><td><code>dns_servers</code></td><td>string</td><td></td><td>DNS 服务器</td></tr>
+                <tr><td><code>force</code></td><td>boolean</td><td></td><td>强制提交（忽略IP/MAC重复），默认 false</td></tr>
+            </tbody>
+        </table>
+        <div class="note warning">
+            ⚠️ 如果 IP 或 MAC 与已有设备重复且 <code>force</code> 未设为 <code>true</code>，将返回 409 状态码并提供重复设备详情。
+        </div>
+    </div>
+
+    <div class="endpoint method-put" id="devices-update">
+        <span class="method put">PUT</span>
+        <span class="url">/api/v1/devices/:id</span>
+        <div class="desc">更新设备记录（需要 write 权限）</div>
+    </div>
+    <div class="card">
+        <p>请求体与创建接口相同，仅传入需要修改的字段即可。</p>
+    </div>
+
+    <div class="endpoint method-delete" id="devices-delete">
+        <span class="method delete">DELETE</span>
+        <span class="url">/api/v1/devices/:id</span>
+        <div class="desc">删除设备记录（需要 write 权限）</div>
+    </div>
+
+    <div class="endpoint method-get" id="devices-dup">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/devices/check-duplicates</span>
+        <div class="desc">检测所有 IP/MAC 地址重复</div>
+    </div>
+
+    <div class="endpoint method-get" id="devices-export">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/export/:format</span>
+        <div class="desc">导出设备列表</div>
+    </div>
+    <div class="card">
+        <h3>路径参数</h3>
+        <table>
+            <thead><tr><th>参数</th><th>说明</th></tr></thead>
+            <tbody><tr><td><code>format</code></td><td>导出格式：<code>xlsx</code> 或 <code>csv</code></td></tr></tbody>
+        </table>
+        <h3>查询参数</h3>
+        <table>
+            <thead><tr><th>参数</th><th>说明</th></tr></thead>
+            <tbody>
+                <tr><td><code>project_id</code></td><td>按项目筛选</td></tr>
+                <tr><td><code>department_id</code></td><td>按单位筛选</td></tr>
+                <tr><td><code>keyword</code></td><td>关键词搜索</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 项目管理 -->
+<div class="section" id="projects">
+    <h2>📁 项目管理</h2>
+
+    <div class="endpoint method-get">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/projects</span>
+        <div class="desc">获取项目列表（含用户数、单位数、设备数统计）</div>
+    </div>
+</div>
+
+<!-- 单位管理 -->
+<div class="section" id="departments">
+    <h2>🏢 单位管理</h2>
+
+    <div class="endpoint method-get">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/departments</span>
+        <div class="desc">获取单位列表</div>
+    </div>
+    <div class="card">
+        <h3>查询参数</h3>
+        <table>
+            <thead><tr><th>参数</th><th>类型</th><th>说明</th></tr></thead>
+            <tbody><tr><td><code>project_id</code></td><td>int</td><td>按项目ID筛选</td></tr></tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 统计信息 -->
+<div class="section" id="stats">
+    <h2>📊 统计信息</h2>
+
+    <div class="endpoint method-get">
+        <span class="method get">GET</span>
+        <span class="url">/api/v1/stats</span>
+        <div class="desc">获取系统统计数据</div>
+    </div>
+    <div class="card">
+        <h3>响应示例</h3>
+        <pre>{
+    <span class="key">"code"</span>: <span class="num">200</span>,
+    <span class="key">"data"</span>: {
+        <span class="key">"project_count"</span>: <span class="num">3</span>,
+        <span class="key">"user_count"</span>: <span class="num">4</span>,
+        <span class="key">"department_count"</span>: <span class="num">10</span>,
+        <span class="key">"device_count"</span>: <span class="num">156</span>,
+        <span class="key">"today_count"</span>: <span class="num">12</span>,
+        <span class="key">"project_stats"</span>: [
+            { <span class="key">"name"</span>: <span class="str">"总部设备管理"</span>, <span class="key">"count"</span>: <span class="num">80</span> }
+        ]
+    }
+}</pre>
+    </div>
+</div>
+
+<!-- 错误码 -->
+<div class="section" id="errors">
+    <h2>❌ 错误码说明</h2>
+    <div class="card">
+        <table>
+            <thead><tr><th>状态码</th><th>说明</th></tr></thead>
+            <tbody>
+                <tr><td><code>200</code></td><td>请求成功</td></tr>
+                <tr><td><code>201</code></td><td>创建成功</td></tr>
+                <tr><td><code>400</code></td><td>请求参数错误</td></tr>
+                <tr><td><code>401</code></td><td>未认证（缺少或无效的 API Key）</td></tr>
+                <tr><td><code>403</code></td><td>权限不足</td></tr>
+                <tr><td><code>404</code></td><td>资源不存在</td></tr>
+                <tr><td><code>409</code></td><td>数据冲突（IP/MAC重复等）</td></tr>
+                <tr><td><code>500</code></td><td>服务器内部错误</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- 调用示例 -->
+<div class="section" id="examples">
+    <h2>💡 调用示例</h2>
+
+    <h3>Python (requests)</h3>
+    <div class="card">
+        <pre><span class="key">import</span> requests
+
+API_BASE = <span class="str">"http://localhost:5000/api/v1"</span>
+API_KEY = <span class="str">"dc_your_api_key_here"</span>
+HEADERS = {<span class="str">"X-API-Key"</span>: API_KEY}
+
+<span class="comment"># 获取设备列表</span>
+resp = requests.get(f<span class="str">"{API_BASE}/devices"</span>, headers=HEADERS, params={
+    <span class="str">"page"</span>: <span class="num">1</span>,
+    <span class="str">"per_page"</span>: <span class="num">10</span>,
+    <span class="str">"project_id"</span>: <span class="num">1</span>
+})
+data = resp.json()
+<span class="key">print</span>(f<span class="str">"共 {data['data']['total']} 条设备"</span>)
+
+<span class="comment"># 创建设备记录</span>
+resp = requests.post(f<span class="str">"{API_BASE}/devices"</span>, headers={**HEADERS, <span class="str">"Content-Type"</span>: <span class="str">"application/json"</span>}, json={
+    <span class="str">"department_id"</span>: <span class="num">1</span>,
+    <span class="str">"user_name"</span>: <span class="str">"张三"</span>,
+    <span class="str">"computer_name"</span>: <span class="str">"PC-001"</span>,
+    <span class="str">"ip_address"</span>: <span class="str">"192.168.1.100"</span>,
+    <span class="str">"mac_address"</span>: <span class="str">"AA:BB:CC:DD:EE:FF"</span>
+})
+<span class="key">print</span>(resp.json())
+
+<span class="comment"># 导出 Excel</span>
+resp = requests.get(f<span class="str">"{API_BASE}/export/xlsx"</span>, headers=HEADERS)
+<span class="key">with</span> open(<span class="str">"devices.xlsx"</span>, <span class="str">"wb"</span>) <span class="key">as</span> f:
+    f.write(resp.content)</pre>
+    </div>
+
+    <h3>cURL</h3>
+    <div class="card">
+        <pre><span class="comment"># 获取设备列表</span>
+curl -H <span class="str">"X-API-Key: dc_your_api_key_here"</span> \
+     <span class="str">"http://localhost:5000/api/v1/devices?page=1&per_page=10"</span>
+
+<span class="comment"># 创建设备记录</span>
+curl -X POST -H <span class="str">"X-API-Key: dc_your_api_key_here"</span> \
+     -H <span class="str">"Content-Type: application/json"</span> \
+     -d <span class="str">'{"department_id":1,"user_name":"张三","ip_address":"192.168.1.100"}'</span> \
+     <span class="str">"http://localhost:5000/api/v1/devices"</span>
+
+<span class="comment"># 获取统计信息</span>
+curl -H <span class="str">"X-API-Key: dc_your_api_key_here"</span> \
+     <span class="str">"http://localhost:5000/api/v1/stats"</span></pre>
+    </div>
+
+    <h3>JavaScript (fetch)</h3>
+    <div class="card">
+        <pre><span class="key">const</span> API_BASE = <span class="str">'http://localhost:5000/api/v1'</span>;
+<span class="key">const</span> API_KEY = <span class="str">'dc_your_api_key_here'</span>;
+
+<span class="comment">// 获取设备列表</span>
+<span class="key">const</span> res = <span class="key">await</span> fetch(<span class="str">`${API_BASE}/devices?page=1`</span>, {
+    headers: { <span class="str">'X-API-Key'</span>: API_KEY }
+});
+<span class="key">const</span> data = <span class="key">await</span> res.json();
+console.log(<span class="str">`共 ${data.data.total} 条设备`</span>);
+
+<span class="comment">// 创建设备</span>
+<span class="key">const</span> res2 = <span class="key">await</span> fetch(<span class="str">`${API_BASE}/devices`</span>, {
+    method: <span class="str">'POST'</span>,
+    headers: { <span class="str">'X-API-Key'</span>: API_KEY, <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+    body: JSON.stringify({
+        department_id: <span class="num">1</span>,
+        user_name: <span class="str">'张三'</span>,
+        ip_address: <span class="str">'192.168.1.100'</span>
+    })
+});</pre>
+    </div>
+</div>
+
+</div>
+
+<div style="text-align:center; padding:30px; color:#999; font-size:13px;">
+    设备信息采集器 API v1 · <a href="/" style="color:var(--primary);">返回管理端</a>
+</div>
+
+</body>
+</html>
