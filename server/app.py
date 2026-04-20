@@ -44,9 +44,6 @@ app.permanent_session_lifetime = timedelta(days=7)
 DB_PATH = os.path.join(os.path.dirname(__file__), 'data', 'devices.db')
 SECRET_KEY = 'device-collector-2026'
 
-# 确保 gunicorn 模式下也初始化数据库
-init_db()
-
 # 登录失败限制配置
 MAX_LOGIN_ATTEMPTS = 5          # 最大尝试次数
 LOCKOUT_DURATION = 300          # 锁定秒数（5分钟）
@@ -236,6 +233,10 @@ def init_db():
 
     conn.commit()
     conn.close()
+
+
+# 确保 gunicorn 模式下也初始化数据库
+init_db()
 
 
 def add_log(log_type, content, detail=None, operator=None, ip_address=None):
