@@ -2086,9 +2086,75 @@ Password = ENC:{encrypted_pwd}
             f.write(config_content)
 
         if pack_mode == 'exe':
-            # 检测运行环境：Linux 容器无法生成 Windows EXE，自动回退到 zip 模式
-            if sys.platform.startswith('linux'):
-                app.logger.warning("[客户端生成] Linux 环境无法生成 Windows EXE，自动切换为 zip 模式")
+            # 优先检测预编译 EXE（Docker 容器中的 Windows 交叉编译产物）
+            prebuilt_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'client', 'prebuilt')
+            prebuilt_exe = os.path.join(prebuilt_dir, 'DeviceCollector.exe')
+
+            if os.path.exists(prebuilt_exe):
+                # ===== 预编译 EXE 模式（无需 PyInstaller，直接复制 + 替换 CONFIG） =====
+                app.logger.info(f"[客户端生成] 使用预编译EXE: {prebuilt_exe}")
+
+                display_name = user['display_name'] or user['username']
+                safe_name = user['username'].replace(' ', '_').replace('.', '_')
+                display_exe_name = f"设备采集器_{display_name}"
+
+                # 创建打包目录
+                pkg_dir = os.path.join(tmp_dir, 'package')
+                os.makedirs(pkg_dir, exist_ok=True)
+
+                # 复制预编译 EXE 并重命名
+                dst_exe = os.path.join(pkg_dir, f'{display_exe_name}.exe')
+                shutil.copy2(prebuilt_exe, dst_exe)
+
+                # 复制 CONFIG.INI
+                shutil.copy2(config_path, os.path.join(pkg_dir, 'CONFIG.INI'))
+
+                # 写使用说明
+                readme = f"""设备采集器 - 使用说明
+============================================
+
+文件说明:
+  {display_exe_name}.exe  - 客户端程序，双击运行
+  CONFIG.INI              - 配置文件（含服务器地址和加密登录凭据）
+
+使用方法:
+  1. 解压后保持所有文件在同一文件夹中
+  2. 双击 {display_exe_name}.exe 运行
+  3. 程序会自动读取 CONFIG.INI 中的配置并登录
+
+注意事项:
+  - CONFIG.INI 中的密码为 AES 加密密文，请勿手动修改
+  - 如需更改服务器地址或账号，请联系管理员重新生成
+  - 整个文件夹可以复制到其他电脑使用，无需安装 Python
+
+生成信息:
+  生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  关联用户: {display_name}
+  关联项目: {user['project_name'] or '未关联'}
+  服务器:   {server_url}
+"""
+                with open(os.path.join(pkg_dir, '使用说明.txt'), 'w', encoding='utf-8') as f:
+                    f.write(readme)
+
+                # 打包为 ZIP
+                zip_filename = f"设备采集客户端_{display_name}_EXE版.zip"
+                zip_path = os.path.join(tempfile.gettempdir(),
+                                        f'dc_client_{user["id"]}_{int(time.time())}.zip')
+                with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                    for root, dirs, files in os.walk(pkg_dir):
+                        for fname in files:
+                            fpath = os.path.join(root, fname)
+                            arcname = os.path.relpath(fpath, pkg_dir)
+                            zf.write(fpath, arcname)
+
+                # 清理
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                app.logger.info(f"[客户端生成] 预编译EXE打包成功: {zip_filename}")
+                return zip_path, zip_filename
+
+            elif sys.platform.startswith('linux'):
+                # Linux 环境且无预编译 EXE，回退到 zip 模式
+                app.logger.warning("[客户端生成] Linux 环境无预编译EXE，自动切换为 zip 模式")
                 pack_mode = 'zip'
 
         if pack_mode == 'exe':
