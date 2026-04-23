@@ -238,26 +238,40 @@
             </div>
             <div class="form-group" style="margin-top:14px;">
                 <label>打包方式</label>
-                <div style="display:flex; gap:12px; margin-top:6px;">
-                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; transition:all 0.2s;" id="gcModeExeLabel">
+                <div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; min-width:140px; transition:all 0.2s;" id="gcModeExeLabel">
                         <input type="radio" name="gcPackMode" value="exe" checked onchange="onPackModeChange()">
                         <div>
                             <div style="font-weight:600; font-size:14px;">🖥️ EXE 可执行文件</div>
-                            <div style="font-size:12px; color:#888; margin-top:2px;">独立运行，无需 Python 环境</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">Win10/11，无需Python</div>
                         </div>
                     </label>
-                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; transition:all 0.2s;" id="gcModeZipLabel">
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; min-width:140px; transition:all 0.2s;" id="gcModeBatLabel">
+                        <input type="radio" name="gcPackMode" value="bat" onchange="onPackModeChange()">
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">📋 BAT 脚本</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">Win7+，无需Python</div>
+                        </div>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; min-width:140px; transition:all 0.2s;" id="gcModeShLabel">
+                        <input type="radio" name="gcPackMode" value="sh" onchange="onPackModeChange()">
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">🐧 Shell 脚本</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">麒麟/统信/UOS</div>
+                        </div>
+                    </label>
+                    <label style="display:flex; align-items:center; gap:6px; cursor:pointer; padding:10px 14px; border:2px solid var(--border); border-radius:8px; flex:1; min-width:140px; transition:all 0.2s;" id="gcModeZipLabel">
                         <input type="radio" name="gcPackMode" value="zip" onchange="onPackModeChange()">
                         <div>
                             <div style="font-weight:600; font-size:14px;">📁 Python 源码包</div>
-                            <div style="font-size:12px; color:#888; margin-top:2px;">需要 Python 环境运行</div>
+                            <div style="font-size:12px; color:#888; margin-top:2px;">需Python环境</div>
                         </div>
                     </label>
                 </div>
             </div>
             <div style="background:#e8f5e9; border-radius:8px; padding:12px 14px; margin:16px 0; font-size:13px; color:#2e7d32; display:flex; align-items:flex-start; gap:8px;">
                 <span>🔒</span>
-                <div>密码采用 AES-128 加密存储在 CONFIG.INI 中，无法直接读取。EXE 模式生成需要约 1-2 分钟，请耐心等待。</div>
+                <div>EXE 模式密码采用 AES-128 加密存储；BAT/Shell 模式密码为明文存储（无AES解密能力）；所有模式均通过数据端口(5001)提交设备信息。EXE 模式生成需要约 1-2 分钟。</div>
             </div>
             <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:20px;">
                 <button class="btn" style="background:#eee; padding:10px 20px;" onclick="closeGenerateClient()">取消</button>
@@ -866,7 +880,8 @@ async function doGenerateClient() {
     const packMode = document.querySelector('input[name="gcPackMode"]:checked').value;
     const btn = document.getElementById('gcGenBtn');
     btn.disabled = true;
-    btn.textContent = packMode === 'exe' ? '⏳ 正在打包 EXE（约1-2分钟）...' : '⏳ 生成中...';
+    const modeLabels = {exe: 'EXE（约1-2分钟）', bat: 'BAT脚本', sh: 'Shell脚本', zip: 'Python包'};
+    btn.textContent = '⏳ 正在生成' + (modeLabels[packMode] || '') + '...';
 
     try {
         const res = await fetch(API + '/api/generate-client', {
@@ -910,12 +925,15 @@ async function doGenerateClient() {
 // 打包模式切换样式
 function onPackModeChange() {
     const val = document.querySelector('input[name="gcPackMode"]:checked').value;
-    const exeLabel = document.getElementById('gcModeExeLabel');
-    const zipLabel = document.getElementById('gcModeZipLabel');
-    exeLabel.style.borderColor = val === 'exe' ? '#1a73e8' : 'var(--border)';
-    exeLabel.style.background = val === 'exe' ? '#f0f7ff' : 'white';
-    zipLabel.style.borderColor = val === 'zip' ? '#1a73e8' : 'var(--border)';
-    zipLabel.style.background = val === 'zip' ? '#f0f7ff' : 'white';
+    const modes = ['exe', 'zip', 'bat', 'sh'];
+    const modeIds = {exe:'gcModeExeLabel', zip:'gcModeZipLabel', bat:'gcModeBatLabel', sh:'gcModeShLabel'};
+    modes.forEach(m => {
+        const el = document.getElementById(modeIds[m]);
+        if (el) {
+            el.style.borderColor = val === m ? '#1a73e8' : 'var(--border)';
+            el.style.background = val === m ? '#f0f7ff' : 'white';
+        }
+    });
 }
 // 初始化样式
 setTimeout(onPackModeChange, 100);

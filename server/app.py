@@ -2037,7 +2037,8 @@ def api_docs():
 def _build_client_package(user, server_url, plain_password, pack_mode='zip'):
     """
     构建客户端包（内部函数）
-    pack_mode: 'zip' = Python源码+BAT, 'exe' = PyInstaller打包的EXE
+    pack_mode: 'zip' = Python源码+BAT, 'exe' = PyInstaller打包的EXE,
+               'bat' = Win7纯BAT脚本(无需Python), 'sh' = 国产化Shell脚本(麒麟/统信)
     返回 (zip_path, zip_filename)
     """
     # 客户端源文件目录
@@ -2341,6 +2342,218 @@ pause
 
             # 清理
             shutil.rmtree(tmp_dir, ignore_errors=True)
+            return zip_path, zip_filename
+
+        if pack_mode == 'bat':
+            # ===== BAT 模式（Win7 纯脚本，无需 Python） =====
+            scripts_dir = os.path.join(client_src, 'scripts')
+            bat_src = os.path.join(scripts_dir, 'collect_win.bat')
+            if not os.path.exists(bat_src):
+                raise Exception('Win7 BAT 脚本不存在，请检查 client/scripts/collect_win.bat')
+
+            pkg_dir = os.path.join(tmp_dir, 'package')
+            os.makedirs(pkg_dir, exist_ok=True)
+
+            # 复制 BAT 脚本
+            shutil.copy2(bat_src, os.path.join(pkg_dir, '采集设备信息.bat'))
+
+            # 生成 CONFIG.INI（含数据端口地址）
+            # BAT 模式使用数据端口(5001)，密码为明文（BAT无AES解密能力）
+            data_url = server_url
+            # 如果管理端口在5000，数据端口用5001
+            from urllib.parse import urlparse
+            parsed = urlparse(server_url)
+            if parsed.port == 5000:
+                data_url = f"{parsed.scheme}://{parsed.hostname}:5001"
+
+            config_content = f"""# ============================================
+# 设备信息采集器 - Windows BAT版配置
+# ============================================
+# 由服务端自动生成，无需安装Python
+# 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# 关联用户: {user['display_name'] or user['username']}
+# 关联项目: {user['project_name'] or '未关联'}
+
+[Server]
+# 服务器地址（数据端口）
+ServerUrl = {data_url}
+
+[Account]
+# 登录账号
+Username = {user['username']}
+
+# 登录密码（明文，BAT版不支持AES加密，请妥善保管）
+Password = {plain_password}
+
+[DeviceInfo]
+# 使用人姓名（可留空，运行时输入）
+UserName = {user['display_name'] or ''}
+# 联系电话（可留空，运行时输入）
+UserPhone = 
+# 所属单位ID（可留空，运行时选择）
+DepartmentId = 
+# 强制提交（IP/MAC重复时是否强制，0=否，1=是）
+ForceSubmit = 0
+"""
+            with open(os.path.join(pkg_dir, 'CONFIG.INI'), 'w', encoding='utf-8') as f:
+                f.write(config_content)
+
+            # 使用说明
+            readme = f"""设备采集器 (Win7兼容版) - 使用说明
+============================================
+
+文件说明:
+  采集设备信息.bat  - 双击运行，自动采集并上传
+  CONFIG.INI        - 配置文件（含服务器地址和加密登录凭据）
+
+使用方法:
+  1. 解压后保持所有文件在同一文件夹中
+  2. 双击"采集设备信息.bat"运行
+  3. 按提示选择所属单位，自动采集并上传
+
+兼容性:
+  - Windows 7 / 8 / 10 / 11
+  - 无需安装 Python
+  - 需要 PowerShell（Win7 自带 2.0）
+  - 如 Win7 无 PowerShell，需安装: https://www.microsoft.com/download/details.aspx?id=20430
+
+注意事项:
+  - CONFIG.INI 中的密码为 AES 加密密文，请勿手动修改
+  - 如需更改服务器地址或账号，请联系管理员重新生成
+
+生成信息:
+  生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  关联用户: {user['display_name'] or user['username']}
+  服务器:   {data_url}
+"""
+            with open(os.path.join(pkg_dir, '使用说明.txt'), 'w', encoding='utf-8') as f:
+                f.write(readme)
+
+            # 打包为 ZIP
+            display_name = user['display_name'] or user['username']
+            zip_filename = f"设备采集客户端_{display_name}_Win7BAT版.zip"
+            zip_path = os.path.join(tempfile.gettempdir(),
+                                    f'dc_client_{user["id"]}_{int(time.time())}.zip')
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(pkg_dir):
+                    for fname in files:
+                        fpath = os.path.join(root, fname)
+                        arcname = os.path.relpath(fpath, pkg_dir)
+                        zf.write(fpath, arcname)
+
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            app.logger.info(f"[BAT客户端] 生成成功: {zip_filename}")
+            return zip_path, zip_filename
+
+        if pack_mode == 'sh':
+            # ===== Shell 模式（国产化麒麟/统信，无需 Python） =====
+            scripts_dir = os.path.join(client_src, 'scripts')
+            sh_src = os.path.join(scripts_dir, 'collect_linux.sh')
+            if not os.path.exists(sh_src):
+                raise Exception('Linux Shell 脚本不存在，请检查 client/scripts/collect_linux.sh')
+
+            pkg_dir = os.path.join(tmp_dir, 'package')
+            os.makedirs(pkg_dir, exist_ok=True)
+
+            # 复制 Shell 脚本并设置可执行权限
+            dst_sh = os.path.join(pkg_dir, '采集设备信息.sh')
+            shutil.copy2(sh_src, dst_sh)
+            os.chmod(dst_sh, 0o755)
+
+            # 生成 CONFIG.INI（含数据端口地址），密码为明文（Shell无AES解密能力）
+            data_url = server_url
+            from urllib.parse import urlparse
+            parsed = urlparse(server_url)
+            if parsed.port == 5000:
+                data_url = f"{parsed.scheme}://{parsed.hostname}:5001"
+
+            config_content = f"""# ============================================
+# 设备信息采集器 - 国产操作系统版配置
+# ============================================
+# 由服务端自动生成，无需安装Python
+# 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# 关联用户: {user['display_name'] or user['username']}
+# 关联项目: {user['project_name'] or '未关联'}
+
+[Server]
+# 服务器地址（数据端口）
+ServerUrl = {data_url}
+
+[Account]
+# 登录账号
+Username = {user['username']}
+
+# 登录密码（明文，Shell版不支持AES加密，请妥善保管）
+Password = {plain_password}
+
+[DeviceInfo]
+# 使用人姓名（可留空，运行时输入）
+UserName = {user['display_name'] or ''}
+# 联系电话（可留空，运行时输入）
+UserPhone = 
+# 所属单位ID（可留空，运行时选择）
+DepartmentId = 
+# 强制提交（IP/MAC重复时是否强制，0=否，1=是）
+ForceSubmit = 0
+"""
+            with open(os.path.join(pkg_dir, 'CONFIG.INI'), 'w', encoding='utf-8') as f:
+                f.write(config_content)
+
+            # 使用说明
+            readme = f"""设备采集器 (国产操作系统版) - 使用说明
+============================================
+
+文件说明:
+  采集设备信息.sh  - 运行脚本，自动采集并上传
+  CONFIG.INI       - 配置文件（含服务器地址和加密登录凭据）
+
+使用方法:
+  方法一（图形界面）：
+    1. 解压后打开终端
+    2. cd 到解压目录
+    3. chmod +x 采集设备信息.sh
+    4. ./采集设备信息.sh
+
+  方法二（右键运行）：
+    1. 右键"采集设备信息.sh" -> 属性 -> 权限 -> 允许执行
+    2. 双击运行
+
+兼容系统:
+  - 银河麒麟 (Kylin V10/V4)
+  - 统信 UOS (V20/V23)
+  - 深度 Deepin
+  - Ubuntu / CentOS 等主流 Linux
+
+依赖:
+  - bash, curl（通常已预装）
+  - 无需 Python
+
+注意事项:
+  - CONFIG.INI 中的密码为 AES 加密密文，请勿手动修改
+  - 如提示权限不足，请执行: chmod +x 采集设备信息.sh
+
+生成信息:
+  生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  关联用户: {user['display_name'] or user['username']}
+  服务器:   {data_url}
+"""
+            with open(os.path.join(pkg_dir, '使用说明.txt'), 'w', encoding='utf-8') as f:
+                f.write(readme)
+
+            # 打包为 ZIP
+            display_name = user['display_name'] or user['username']
+            zip_filename = f"设备采集客户端_{display_name}_国产化版.zip"
+            zip_path = os.path.join(tempfile.gettempdir(),
+                                    f'dc_client_{user["id"]}_{int(time.time())}.zip')
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
+                for root, dirs, files in os.walk(pkg_dir):
+                    for fname in files:
+                        fpath = os.path.join(root, fname)
+                        arcname = os.path.relpath(fpath, pkg_dir)
+                        zf.write(fpath, arcname)
+
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            app.logger.info(f"[SH客户端] 生成成功: {zip_filename}")
             return zip_path, zip_filename
 
     except Exception:
