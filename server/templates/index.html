@@ -218,8 +218,8 @@
 
     <!-- Departments -->
     <!-- 生成客户端弹窗 -->
-    <div id="generateClientModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; display:none; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:12px; padding:28px 32px; width:520px; max-width:90vw; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <div id="generateClientModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:12px; padding:28px 32px; width:560px; max-width:90vw; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
             <h3 style="margin:0 0 20px; font-size:18px; display:flex; align-items:center; gap:8px;">📦 生成客户端程序</h3>
             <div style="background:#f0f7ff; border-radius:8px; padding:14px 16px; margin-bottom:18px; border-left:4px solid #1a73e8;">
                 <div style="font-size:13px; color:#666; margin-bottom:4px;">目标用户</div>
@@ -268,6 +268,23 @@
                         </div>
                     </label>
                 </div>
+            </div>
+            <!-- BAT/Shell 模式：项目+单位选择 -->
+            <div id="gcDeptSelector" style="display:none; margin-top:14px; padding:14px 16px; background:#fff8e1; border-radius:8px; border-left:4px solid #f9a825;">
+                <div style="font-weight:600; font-size:14px; margin-bottom:10px; display:flex; align-items:center; gap:6px;">📌 指定项目与单位 <span style="font-weight:400; font-size:12px; color:#888;">（选择后用户无需登录，直接输入姓名电话即可提交）</span></div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label style="font-size:13px;">项目</label>
+                    <select id="gcProjectId" onchange="onGcProjectChange()" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                        <option value="">-- 请选择项目 --</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-top:8px;">
+                    <label style="font-size:13px;">单位</label>
+                    <select id="gcDepartmentId" style="width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px; font-size:14px;">
+                        <option value="">-- 请先选择项目 --</option>
+                    </select>
+                </div>
+                <div style="font-size:12px; color:#888; margin-top:6px;">💡 选定后，生成的客户端无需登录选单位，用户只输入姓名+电话即可提交</div>
             </div>
             <div style="background:#e8f5e9; border-radius:8px; padding:12px 14px; margin:16px 0; font-size:13px; color:#2e7d32; display:flex; align-items:flex-start; gap:8px;">
                 <span>🔒</span>
@@ -856,11 +873,19 @@ function showGenerateClient(user) {
     _gcUser = user;
     document.getElementById('gcUserName').textContent = user.display_name || user.username;
     document.getElementById('gcUserDetail').textContent = `用户名: ${user.username} | 项目: ${user.project_name || '未关联'} | 角色: ${user.role === 'admin' ? '管理员' : '普通用户'}`;
-    // 默认服务器地址
+    // 重置表单状态
     document.getElementById('gcServerUrl').value = '';
     document.getElementById('gcPassword').value = '';
+    // 默认选中 EXE 模式
+    document.querySelector('input[name="gcPackMode"][value="exe"]').checked = true;
+    // 重置项目/单位下拉
+    document.getElementById('gcProjectId').innerHTML = '<option value="">-- 请选择项目 --</option>';
+    document.getElementById('gcDepartmentId').innerHTML = '<option value="">-- 请先选择项目 --</option>';
+    // 隐藏项目/单位选择区
+    document.getElementById('gcDeptSelector').style.display = 'none';
     const modal = document.getElementById('generateClientModal');
     modal.style.display = 'flex';
+    onPackModeChange();
 }
 
 function closeGenerateClient() {
@@ -878,21 +903,28 @@ async function doGenerateClient() {
 
     const serverUrl = document.getElementById('gcServerUrl').value.trim();
     const packMode = document.querySelector('input[name="gcPackMode"]:checked').value;
+    // BAT/Shell 模式读取选中的单位ID
+    const departmentId = (packMode === 'bat' || packMode === 'sh')
+        ? document.getElementById('gcDepartmentId').value
+        : '';
     const btn = document.getElementById('gcGenBtn');
     btn.disabled = true;
     const modeLabels = {exe: 'EXE（约1-2分钟）', bat: 'BAT脚本', sh: 'Shell脚本', zip: 'Python包'};
     btn.textContent = '⏳ 正在生成' + (modeLabels[packMode] || '') + '...';
 
     try {
+        const body = {
+            user_id: _gcUser.id,
+            server_url: serverUrl,
+            password: password,
+            pack_mode: packMode
+        };
+        if (departmentId) body.department_id = departmentId;
+
         const res = await fetch(API + '/api/generate-client', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({
-                user_id: _gcUser.id,
-                server_url: serverUrl,
-                password: password,
-                pack_mode: packMode
-            })
+            body: JSON.stringify(body)
         });
 
         if (!res.ok) {
@@ -922,7 +954,7 @@ async function doGenerateClient() {
     }
 }
 
-// 打包模式切换样式
+// 打包模式切换样式 + 显示/隐藏项目单位选择
 function onPackModeChange() {
     const val = document.querySelector('input[name="gcPackMode"]:checked').value;
     const modes = ['exe', 'zip', 'bat', 'sh'];
@@ -934,9 +966,50 @@ function onPackModeChange() {
             el.style.background = val === m ? '#f0f7ff' : 'white';
         }
     });
+    // BAT/Shell 模式显示项目+单位选择，其他模式隐藏
+    const deptSelector = document.getElementById('gcDeptSelector');
+    if (val === 'bat' || val === 'sh') {
+        deptSelector.style.display = 'block';
+        loadGcProjects();
+    } else {
+        deptSelector.style.display = 'none';
+    }
+    console.log('[onPackModeChange] mode:', val, 'deptSelector visible:', val === 'bat' || val === 'sh');
 }
 // 初始化样式
 setTimeout(onPackModeChange, 100);
+
+// 加载项目列表（生成客户端弹窗用）
+async function loadGcProjects() {
+    try {
+        const res = await fetch(API + '/api/projects');
+        const projects = await res.json();
+        const sel = document.getElementById('gcProjectId');
+        sel.innerHTML = '<option value="">-- 请选择项目 --</option>';
+        projects.forEach(p => {
+            sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+        });
+    } catch (e) {
+        console.error('loadGcProjects error:', e);
+    }
+}
+
+// 项目选择变化 → 加载该项目的单位列表
+async function onGcProjectChange() {
+    const projectId = document.getElementById('gcProjectId').value;
+    const deptSel = document.getElementById('gcDepartmentId');
+    deptSel.innerHTML = '<option value="">-- 请选择单位 --</option>';
+    if (!projectId) return;
+    try {
+        const res = await fetch(API + `/api/departments?project_id=${projectId}`);
+        const depts = await res.json();
+        depts.forEach(d => {
+            deptSel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+        });
+    } catch (e) {
+        console.error('onGcProjectChange error:', e);
+    }
+}
 
 // ==================== Departments ====================
 async function loadDepartments() {

@@ -2034,11 +2034,12 @@ def api_docs():
 
 # ==================== 生成客户端 ====================
 
-def _build_client_package(user, server_url, plain_password, pack_mode='zip'):
+def _build_client_package(user, server_url, plain_password, pack_mode='zip', department_id=None):
     """
     构建客户端包（内部函数）
     pack_mode: 'zip' = Python源码+BAT, 'exe' = PyInstaller打包的EXE,
                'bat' = Win7纯BAT脚本(无需Python), 'sh' = 国产化Shell脚本(麒麟/统信)
+    department_id: BAT/Shell模式指定单位ID，用户无需登录选单位，只输入姓名电话即可提交
     返回 (zip_path, zip_filename)
     """
     # 客户端源文件目录
@@ -2347,9 +2348,16 @@ pause
         if pack_mode == 'bat':
             # ===== BAT 模式（Win7 纯脚本，无需 Python） =====
             scripts_dir = os.path.join(client_src, 'scripts')
-            bat_src = os.path.join(scripts_dir, 'collect_win.bat')
-            if not os.path.exists(bat_src):
-                raise Exception('Win7 BAT 脚本不存在，请检查 client/scripts/collect_win.bat')
+
+            # 如果指定了 department_id，使用极简版（无需登录选单位）
+            if department_id:
+                bat_src = os.path.join(scripts_dir, 'collect_easy.bat')
+                if not os.path.exists(bat_src):
+                    raise Exception('极简版 BAT 脚本不存在，请检查 client/scripts/collect_easy.bat')
+            else:
+                bat_src = os.path.join(scripts_dir, 'collect_win.bat')
+                if not os.path.exists(bat_src):
+                    raise Exception('Win7 BAT 脚本不存在，请检查 client/scripts/collect_win.bat')
 
             pkg_dir = os.path.join(tmp_dir, 'package')
             os.makedirs(pkg_dir, exist_ok=True)
@@ -2357,16 +2365,58 @@ pause
             # 复制 BAT 脚本
             shutil.copy2(bat_src, os.path.join(pkg_dir, '采集设备信息.bat'))
 
-            # 生成 CONFIG.INI（含数据端口地址）
             # BAT 模式使用数据端口(5001)，密码为明文（BAT无AES解密能力）
             data_url = server_url
-            # 如果管理端口在5000，数据端口用5001
             from urllib.parse import urlparse
             parsed = urlparse(server_url)
             if parsed.port == 5000:
                 data_url = f"{parsed.scheme}://{parsed.hostname}:5001"
 
-            config_content = f"""# ============================================
+            # 获取单位名称
+            dept_name = ''
+            if department_id:
+                conn = get_db()
+                dept_row = conn.execute('SELECT name FROM departments WHERE id = ?', (department_id,)).fetchone()
+                if dept_row:
+                    dept_name = dept_row['name']
+                conn.close()
+
+            # 生成 CONFIG.INI
+            if department_id:
+                # 极简版 CONFIG：预填单位ID，用户无需登录
+                config_content = f"""# ============================================
+# 设备信息采集器 - 极简版配置
+# ============================================
+# 由服务端自动生成，无需安装Python
+# 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# 关联用户: {user['display_name'] or user['username']}
+# 关联项目: {user['project_name'] or '未关联'}
+# 关联单位: {dept_name}
+#
+# 【管理员已填写】ServerUrl/Username/Password/DepartmentId
+# 【用户只需填写】使用人姓名和联系电话（运行时输入）
+# ============================================
+
+[Server]
+# 服务器地址（数据端口）
+ServerUrl = {data_url}
+
+[Account]
+# 登录账号
+Username = {user['username']}
+
+# 登录密码（明文，BAT版不支持AES加密，请妥善保管）
+Password = {plain_password}
+
+# 所属单位ID（已预填，用户无需选择）
+DepartmentId = {department_id}
+
+# 强制提交（IP/MAC重复时是否强制，0=否，1=是）
+ForceSubmit = 0
+"""
+            else:
+                # 完整版 CONFIG：需要登录选单位
+                config_content = f"""# ============================================
 # 设备信息采集器 - Windows BAT版配置
 # ============================================
 # 由服务端自动生成，无需安装Python
@@ -2399,7 +2449,38 @@ ForceSubmit = 0
                 f.write(config_content)
 
             # 使用说明
-            readme = f"""设备采集器 (Win7兼容版) - 使用说明
+            if department_id:
+                readme = f"""设备采集器 (一键版) - 使用说明
+============================================
+
+文件说明:
+  采集设备信息.bat  - 双击运行，自动采集并上传
+  CONFIG.INI        - 配置文件（已预填服务器地址、账号和单位信息）
+
+使用方法:
+  1. 解压后保持所有文件在同一文件夹中
+  2. 双击"采集设备信息.bat"运行
+  3. 输入使用人姓名和电话，自动采集并上传
+  4. 无需登录、无需选择单位，一键完成！
+
+兼容性:
+  - Windows 7 / 8 / 10 / 11
+  - 无需安装 Python
+  - 需要 PowerShell（Win7 自带 2.0）
+
+注意事项:
+  - CONFIG.INI 中的项目和单位信息已预填，请勿修改
+  - 密码为明文存储，请妥善保管此文件
+
+生成信息:
+  生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  关联用户: {user['display_name'] or user['username']}
+  关联项目: {user['project_name'] or '未关联'}
+  关联单位: {dept_name}
+  服务器:   {data_url}
+"""
+            else:
+                readme = f"""设备采集器 (Win7兼容版) - 使用说明
 ============================================
 
 文件说明:
@@ -2418,7 +2499,7 @@ ForceSubmit = 0
   - 如 Win7 无 PowerShell，需安装: https://www.microsoft.com/download/details.aspx?id=20430
 
 注意事项:
-  - CONFIG.INI 中的密码为 AES 加密密文，请勿手动修改
+  - CONFIG.INI 中的密码为明文存储，请妥善保管
   - 如需更改服务器地址或账号，请联系管理员重新生成
 
 生成信息:
@@ -2431,7 +2512,10 @@ ForceSubmit = 0
 
             # 打包为 ZIP
             display_name = user['display_name'] or user['username']
-            zip_filename = f"设备采集客户端_{display_name}_Win7BAT版.zip"
+            if department_id:
+                zip_filename = f"设备采集客户端_{display_name}_{dept_name}_一键版.zip"
+            else:
+                zip_filename = f"设备采集客户端_{display_name}_Win7BAT版.zip"
             zip_path = os.path.join(tempfile.gettempdir(),
                                     f'dc_client_{user["id"]}_{int(time.time())}.zip')
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -2467,7 +2551,50 @@ ForceSubmit = 0
             if parsed.port == 5000:
                 data_url = f"{parsed.scheme}://{parsed.hostname}:5001"
 
-            config_content = f"""# ============================================
+            # 获取单位名称
+            dept_name = ''
+            if department_id:
+                conn = get_db()
+                dept_row = conn.execute('SELECT name FROM departments WHERE id = ?', (department_id,)).fetchone()
+                if dept_row:
+                    dept_name = dept_row['name']
+                conn.close()
+
+            # 生成 CONFIG.INI
+            if department_id:
+                # 极简版 CONFIG：预填单位ID
+                config_content = f"""# ============================================
+# 设备信息采集器 - 国产操作系统极简版配置
+# ============================================
+# 由服务端自动生成，无需安装Python
+# 生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+# 关联用户: {user['display_name'] or user['username']}
+# 关联项目: {user['project_name'] or '未关联'}
+# 关联单位: {dept_name}
+#
+# 【管理员已填写】ServerUrl/Username/Password/DepartmentId
+# 【用户只需填写】使用人姓名和联系电话（运行时输入）
+# ============================================
+
+[Server]
+# 服务器地址（数据端口）
+ServerUrl = {data_url}
+
+[Account]
+# 登录账号
+Username = {user['username']}
+
+# 登录密码（明文，Shell版不支持AES加密，请妥善保管）
+Password = {plain_password}
+
+# 所属单位ID（已预填，用户无需选择）
+DepartmentId = {department_id}
+
+# 强制提交（IP/MAC重复时是否强制，0=否，1=是）
+ForceSubmit = 0
+"""
+            else:
+                config_content = f"""# ============================================
 # 设备信息采集器 - 国产操作系统版配置
 # ============================================
 # 由服务端自动生成，无需安装Python
@@ -2500,7 +2627,45 @@ ForceSubmit = 0
                 f.write(config_content)
 
             # 使用说明
-            readme = f"""设备采集器 (国产操作系统版) - 使用说明
+            if department_id:
+                readme = f"""设备采集器 (一键版-国产操作系统) - 使用说明
+============================================
+
+文件说明:
+  采集设备信息.sh  - 运行脚本，自动采集并上传
+  CONFIG.INI       - 配置文件（已预填服务器地址、账号和单位信息）
+
+使用方法:
+  1. 解压后打开终端
+  2. cd 到解压目录
+  3. chmod +x 采集设备信息.sh
+  4. ./采集设备信息.sh
+  5. 输入使用人姓名和电话，自动采集并上传
+  6. 无需登录、无需选择单位，一键完成！
+
+兼容系统:
+  - 银河麒麟 (Kylin V10/V4)
+  - 统信 UOS (V20/V23)
+  - 深度 Deepin
+  - Ubuntu / CentOS 等主流 Linux
+
+依赖:
+  - bash, curl（通常已预装）
+  - 无需 Python
+
+注意事项:
+  - CONFIG.INI 中的项目和单位信息已预填，请勿修改
+  - 密码为明文存储，请妥善保管此文件
+
+生成信息:
+  生成时间: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+  关联用户: {user['display_name'] or user['username']}
+  关联项目: {user['project_name'] or '未关联'}
+  关联单位: {dept_name}
+  服务器:   {data_url}
+"""
+            else:
+                readme = f"""设备采集器 (国产操作系统版) - 使用说明
 ============================================
 
 文件说明:
@@ -2529,7 +2694,8 @@ ForceSubmit = 0
   - 无需 Python
 
 注意事项:
-  - CONFIG.INI 中的密码为 AES 加密密文，请勿手动修改
+  - CONFIG.INI 中的密码为明文存储，请妥善保管
+  - 如需更改服务器地址或账号，请联系管理员重新生成
   - 如提示权限不足，请执行: chmod +x 采集设备信息.sh
 
 生成信息:
@@ -2542,7 +2708,10 @@ ForceSubmit = 0
 
             # 打包为 ZIP
             display_name = user['display_name'] or user['username']
-            zip_filename = f"设备采集客户端_{display_name}_国产化版.zip"
+            if department_id:
+                zip_filename = f"设备采集客户端_{display_name}_{dept_name}_国产化一键版.zip"
+            else:
+                zip_filename = f"设备采集客户端_{display_name}_国产化版.zip"
             zip_path = os.path.join(tempfile.gettempdir(),
                                     f'dc_client_{user["id"]}_{int(time.time())}.zip')
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -2574,6 +2743,7 @@ def generate_client():
     server_url = data.get('server_url', '').strip()
     plain_password = data.get('password', '').strip()
     pack_mode = data.get('pack_mode', 'exe')  # 'exe' 或 'zip'
+    department_id = data.get('department_id')  # BAT/Shell模式预填单位ID
 
     if not user_id:
         return jsonify({'error': '请选择用户'}), 400
@@ -2601,12 +2771,16 @@ def generate_client():
         server_url = request.host_url.rstrip('/')
 
     try:
-        zip_path, zip_filename = _build_client_package(user, server_url, plain_password, pack_mode)
+        zip_path, zip_filename = _build_client_package(
+            user, server_url, plain_password, pack_mode,
+            department_id=department_id
+        )
 
         # 记录日志
+        dept_info = f", 单位ID:{department_id}" if department_id else ""
         add_log('CLIENT_GENERATE',
                 f'生成客户端: {user["display_name"] or user["username"]} ({pack_mode})',
-                f'用户ID:{user_id}, 项目:{user["project_name"] or "无"}, 服务器:{server_url}, 打包:{pack_mode}',
+                f'用户ID:{user_id}, 项目:{user["project_name"] or "无"}, 服务器:{server_url}, 打包:{pack_mode}{dept_info}',
                 operator=session.get('username'),
                 ip_address=request.remote_addr)
 
