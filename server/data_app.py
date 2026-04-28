@@ -207,6 +207,32 @@ def data_login():
     })
 
 
+# 兼容客户端使用的 /api/login 路径（客户端默认调用此路径）
+@app.route('/api/login', methods=['POST'])
+def api_login_compat():
+    """兼容旧客户端的登录接口，转发到 data_login"""
+    return data_login()
+
+
+# 兼容客户端使用的 /api/departments 路径
+@app.route('/api/departments', methods=['GET'])
+def api_departments_compat():
+    """获取单位列表（兼容客户端）"""
+    project_id = request.args.get('project_id')
+    conn = get_db()
+    if project_id:
+        rows = conn.execute(
+            'SELECT id, name, code, description FROM departments WHERE project_id = ? ORDER BY id',
+            (project_id,)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            'SELECT id, name, code, description FROM departments ORDER BY id'
+        ).fetchall()
+    conn.close()
+    return jsonify([dict(r) for r in rows])
+
+
 # ==================== 设备数据提交 ====================
 
 @app.route('/api/devices', methods=['POST'])
