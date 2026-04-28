@@ -133,7 +133,124 @@ def require_api_key(permissions='read'):
     return decorator
 
 
-# ==================== 健康检查 ====================
+# ==================== 首页 & 健康检查 ====================
+
+@app.route('/')
+def index():
+    """数据端口首页 - 展示服务器信息和API列表"""
+    import socket
+    try:
+        hostname = socket.gethostname()
+        # 获取所有本机IP
+        local_ips = []
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(('8.8.8.8', 80))
+            local_ips.append(s.getsockname()[0])
+            s.close()
+        except Exception:
+            pass
+        try:
+            for info in socket.getaddrinfo(hostname, None):
+                ip = info[4][0]
+                if ip not in local_ips and not ip.startswith('127.') and ':' not in ip:
+                    local_ips.append(ip)
+        except Exception:
+            pass
+
+        conn = get_db()
+        device_count = conn.execute('SELECT COUNT(*) FROM devices').fetchone()[0]
+        project_count = conn.execute('SELECT COUNT(*) FROM projects').fetchone()[0]
+        dept_count = conn.execute('SELECT COUNT(*) FROM departments').fetchone()[0]
+        user_count = conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]
+        conn.close()
+
+        return f'''<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备采集器 - 数据端口</title>
+<style>
+    * {{ margin:0; padding:0; box-sizing:border-box; }}
+    body {{ font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; background:#f0f2f5; color:#333; padding:40px 20px; }}
+    .container {{ max-width:700px; margin:0 auto; }}
+    h1 {{ font-size:24px; margin-bottom:6px; color:#1a73e8; }}
+    .subtitle {{ color:#666; font-size:14px; margin-bottom:24px; }}
+    .card {{ background:#fff; border-radius:12px; padding:20px 24px; margin-bottom:16px; box-shadow:0 2px 8px rgba(0,0,0,0.08); }}
+    .card h2 {{ font-size:16px; color:#1a73e8; margin-bottom:12px; border-bottom:1px solid #e8e8e8; padding-bottom:8px; }}
+    .info-row {{ display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid #f5f5f5; }}
+    .info-row:last-child {{ border-bottom:none; }}
+    .info-label {{ color:#666; font-size:14px; }}
+    .info-value {{ font-weight:600; font-size:14px; font-family:Consolas,monospace; }}
+    .ip-highlight {{ color:#1a73e8; font-size:16px; font-weight:700; }}
+    .api-list {{ list-style:none; }}
+    .api-list li {{ padding:8px 0; border-bottom:1px solid #f5f5f5; display:flex; gap:10px; align-items:center; }}
+    .api-list li:last-child {{ border-bottom:none; }}
+    .method {{ background:#1a73e8; color:#fff; padding:2px 8px; border-radius:4px; font-size:12px; font-weight:600; min-width:40px; text-align:center; }}
+    .method.post {{ background:#34a853; }}
+    .path {{ font-family:Consolas,monospace; font-size:13px; color:#333; }}
+    .desc {{ color:#888; font-size:12px; }}
+    .stats {{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:8px; }}
+    .stat {{ text-align:center; }}
+    .stat .num {{ font-size:28px; font-weight:700; color:#1a73e8; }}
+    .stat .label {{ font-size:12px; color:#888; margin-top:2px; }}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>📡 设备信息采集器 - 数据端口</h1>
+    <p class="subtitle">Data Port (:{DATA_PORT}) · 供客户端提交设备数据</p>
+
+    <div class="card">
+        <h2>🌐 服务器地址</h2>
+        <div class="info-row">
+            <span class="info-label">主机名</span>
+            <span class="info-value">{hostname}</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">数据端口地址</span>
+            <span class="info-value ip-highlight">{local_ips[0] if local_ips else "127.0.0.1"}:{DATA_PORT}</span>
+        </div>
+        {''.join(f'<div class="info-row"><span class="info-label">其他IP</span><span class="info-value">{ip}</span></div>' for ip in local_ips[1:])}
+        <div class="info-row">
+            <span class="info-label">管理端口</span>
+            <span class="info-value">{local_ips[0] if local_ips else "127.0.0.1"}:5000</span>
+        </div>
+        <div style="margin-top:12px; padding:10px; background:#e8f5e9; border-radius:8px; font-size:13px; color:#2e7d32;">
+            💡 客户端 CONFIG.INI 中 ServerUrl 请填写: <strong>http://{local_ips[0] if local_ips else "127.0.0.1"}:{DATA_PORT}</strong>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📊 数据统计</h2>
+        <div class="stats">
+            <div class="stat"><div class="num">{project_count}</div><div class="label">项目</div></div>
+            <div class="stat"><div class="num">{dept_count}</div><div class="label">单位</div></div>
+            <div class="stat"><div class="num">{user_count}</div><div class="label">用户</div></div>
+            <div class="stat"><div class="num">{device_count}</div><div class="label">设备</div></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📋 API 接口</h2>
+        <ul class="api-list">
+            <li><span class="method post">POST</span><span class="path">/api/login</span><span class="desc">客户端登录</span></li>
+            <li><span class="method post">POST</span><span class="path">/api/data/login</span><span class="desc">数据端口登录</span></li>
+            <li><span class="method post">POST</span><span class="path">/api/devices</span><span class="desc">提交设备信息</span></li>
+            <li><span class="method get">GET</span><span class="path">/api/departments</span><span class="desc">获取单位列表</span></li>
+            <li><span class="method get">GET</span><span class="path">/api/data/health</span><span class="desc">健康检查</span></li>
+            <li><span class="method get">GET</span><span class="path">/api/v1/devices</span><span class="desc">查询设备(API Key)</span></li>
+            <li><span class="method get">GET</span><span class="path">/api/v1/projects</span><span class="desc">项目列表(API Key)</span></li>
+            <li><span class="method get">GET</span><span class="path">/api/v1/stats</span><span class="desc">统计信息(API Key)</span></li>
+        </ul>
+    </div>
+</div>
+</body>
+</html>'''
+    except Exception as e:
+        return f'<h3>数据端口运行中</h3><p>信息加载失败: {e}</p>'
+
 
 @app.route('/api/data/health', methods=['GET'])
 def health_check():
