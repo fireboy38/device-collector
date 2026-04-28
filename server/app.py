@@ -982,14 +982,15 @@ def submit_device():
                 operator=username)
 
     cursor = conn.cursor()
+    now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
         INSERT INTO devices (
             department_id, user_name, user_phone, user_position,
             computer_name, ip_address, mac_address, dhcp_enabled,
             os_info, cpu_info, ram_info, disk_info,
             motherboard_info, gpu_info, network_adapter,
-            subnet_mask, gateway, dns_servers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            subnet_mask, gateway, dns_servers, collected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('department_id'),
         data.get('user_name'),
@@ -1009,6 +1010,7 @@ def submit_device():
         data.get('subnet_mask'),
         data.get('gateway'),
         data.get('dns_servers'),
+        now_local,
     ))
     conn.commit()
     device_id = cursor.lastrowid
@@ -1141,6 +1143,266 @@ def delete_device(device_id):
             ip_address=request.remote_addr)
 
     return jsonify({'message': '删除成功'})
+
+
+@app.route('/api/devices/batch', methods=['POST'])
+def batch_import_devices():
+    """批量导入设备"""
+    department_id = request.form.get('department_id') or (request.json and request.json.get('department_id'))
+    if not department_id:
+        return jsonify({'error': '请指定所属单位'}), 400
+    department_id = int(department_id)
+
+    # 验证单位存在
+    conn = get_db()
+    dept = conn.execute('SELECT id, name, project_id FROM departments WHERE id = ?', (department_id,)).fetchone()
+    if not dept:
+        conn.close()
+        return jsonify({'error': '单位不存在'}), 404
+
+    devices = []
+
+    if 'file' in request.files:
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'error': '未选择文件'}), 400
+
+        filename = file.filename.lower()
+
+        if filename.endswith('.csv'):
+            raw = file.read()
+            # 尝试多种编码，优先 utf-8-sig（自动去BOM）
+            for enc in ('utf-8-sig', 'gbk', 'gb18030', 'latin-1'):
+                try:
+                    text = raw.decode(enc)
+                    break
+                except (UnicodeDecodeError, ValueError):
+                    continue
+            else:
+                text = raw.decode('utf-8-sig', errors='replace')
+            stream = io.StringIO(text)
+            reader = csv.reader(stream)
+            for i, row in enumerate(reader):
+                if not row or not row[0].strip():
+                    continue
+                first_cell = row[0].strip().strip('\ufeff\u200b')  # 清除BOM和零宽空格
+                # 跳过表头
+                if i == 0 and first_cell in ('使用人', '姓名', 'user_name', 'User', '用户名', '序号', 'ID', '编号'):
+                    continue
+                devices.append({
+                    'user_name': first_cell if len(row) > 0 else '',
+                    'user_phone': row[1].strip() if len(row) > 1 else '',
+                    'user_position': row[2].strip() if len(row) > 2 else '',
+                    'computer_name': row[3].strip() if len(row) > 3 else '',
+                    'ip_address': row[4].strip() if len(row) > 4 else '',
+                    'mac_address': row[5].strip() if len(row) > 5 else '',
+                    'dhcp_enabled': row[6].strip() if len(row) > 6 else '',
+                    'os_info': row[7].strip() if len(row) > 7 else '',
+                    'cpu_info': row[8].strip() if len(row) > 8 else '',
+                    'ram_info': row[9].strip() if len(row) > 9 else '',
+                    'disk_info': row[10].strip() if len(row) > 10 else '',
+                    'motherboard_info': row[11].strip() if len(row) > 11 else '',
+                    'gpu_info': row[12].strip() if len(row) > 12 else '',
+                    'network_adapter': row[13].strip() if len(row) > 13 else '',
+                    'subnet_mask': row[14].strip() if len(row) > 14 else '',
+                    'gateway': row[15].strip() if len(row) > 15 else '',
+                    'dns_servers': row[16].strip() if len(row) > 16 else '',
+                })
+
+        elif filename.endswith('.xlsx') or filename.endswith('.xls'):
+            try:
+                import openpyxl
+                file.stream.seek(0)
+                wb = openpyxl.load_workbook(io.BytesIO(file.read()))
+                ws = wb.active
+                for i, row in enumerate(ws.iter_rows(values_only=True)):
+                    if not row or not row[0] or not str(row[0]).strip():
+                        continue
+                    if i == 0 and str(row[0]).strip() in ('使用人', '姓名', 'user_name', 'User', '用户名'):
+                        continue
+                    def cell(idx):
+                        return str(row[idx]).strip() if len(row) > idx and row[idx] else ''
+                    devices.append({
+                        'user_name': cell(0),
+                        'user_phone': cell(1),
+                        'user_position': cell(2),
+                        'computer_name': cell(3),
+                        'ip_address': cell(4),
+                        'mac_address': cell(5),
+                        'dhcp_enabled': cell(6),
+                        'os_info': cell(7),
+                        'cpu_info': cell(8),
+                        'ram_info': cell(9),
+                        'disk_info': cell(10),
+                        'motherboard_info': cell(11),
+                        'gpu_info': cell(12),
+                        'network_adapter': cell(13),
+                        'subnet_mask': cell(14),
+                        'gateway': cell(15),
+                        'dns_servers': cell(16),
+                    })
+            except Exception as e:
+                conn.close()
+                return jsonify({'error': f'Excel 解析失败: {str(e)}'}), 400
+        else:
+            conn.close()
+            return jsonify({'error': '不支持的文件格式，请使用 CSV 或 Excel 文件'}), 400
+    else:
+        data = request.json
+        if not data or not isinstance(data, list):
+            conn.close()
+            return jsonify({'error': '请提供 JSON 数组或上传 CSV/Excel 文件'}), 400
+        for item in data:
+            if isinstance(item, dict) and item.get('user_name'):
+                devices.append(item)
+
+    if not devices:
+        conn.close()
+        return jsonify({'error': '未找到有效的设备数据'}), 400
+
+    success_count = 0
+    skip_count = 0
+    errors = []
+
+    for dev in devices:
+        user_name = dev.get('user_name', '').strip()
+        if not user_name:
+            skip_count += 1
+            continue
+        try:
+            now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            conn.execute('''
+                INSERT INTO devices (
+                    department_id, user_name, user_phone, user_position,
+                    computer_name, ip_address, mac_address, dhcp_enabled,
+                    os_info, cpu_info, ram_info, disk_info,
+                    motherboard_info, gpu_info, network_adapter,
+                    subnet_mask, gateway, dns_servers, collected_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                department_id, user_name, dev.get('user_phone', ''),
+                dev.get('user_position', ''), dev.get('computer_name', ''),
+                dev.get('ip_address', ''), dev.get('mac_address', ''),
+                dev.get('dhcp_enabled', ''), dev.get('os_info', ''),
+                dev.get('cpu_info', ''), dev.get('ram_info', ''),
+                dev.get('disk_info', ''), dev.get('motherboard_info', ''),
+                dev.get('gpu_info', ''), dev.get('network_adapter', ''),
+                dev.get('subnet_mask', ''), dev.get('gateway', ''),
+                dev.get('dns_servers', ''), now_local,
+            ))
+            success_count += 1
+        except Exception as e:
+            skip_count += 1
+            errors.append(f'使用人"{user_name}"导入失败: {str(e)}')
+
+    conn.commit()
+    conn.close()
+
+    add_log('DEVICE_IMPORT',
+            f'批量导入设备: 成功{success_count}条, 跳过{skip_count}条',
+            f'单位:{dept["name"]}, 文件导入',
+            ip_address=request.remote_addr)
+
+    result = {
+        'message': f'导入完成：成功 {success_count} 条，跳过 {skip_count} 条',
+        'success_count': success_count,
+        'skip_count': skip_count,
+    }
+    if errors:
+        result['details'] = errors[:10]
+    return jsonify(result)
+
+
+@app.route('/api/devices/import-template', methods=['GET'])
+def download_device_import_template():
+    """下载设备导入模板"""
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['使用人', '联系电话', '安装位置', '电脑名称', 'IP地址', 'MAC地址',
+                     'DHCP(是/否)', '操作系统', 'CPU', '内存', '硬盘', '主板', '显卡',
+                     '网卡', '子网掩码', '默认网关', 'DNS服务器'])
+    writer.writerow(['张三', '13800138000', '3楼301', 'DESKTOP-ZHANG', '192.168.1.100',
+                     'AA:BB:CC:DD:EE:FF', '是', 'Windows 10 Pro', 'Intel i5-10400',
+                     '16GB', '512GB SSD', 'B460M', 'UHD630', 'Realtek PCIe GbE',
+                     '255.255.255.0', '192.168.1.1', '8.8.8.8'])
+
+    mem = io.BytesIO()
+    mem.write(output.getvalue().encode('utf-8-sig'))
+    mem.seek(0)
+    return send_file(mem, mimetype='text/csv', as_attachment=True, download_name='设备导入模板.csv')
+
+
+@app.route('/api/ip-subnets', methods=['GET'])
+def get_ip_subnets():
+    """获取设备中存在的IP子网列表"""
+    conn = get_db()
+    # 提取所有IP的网段部分（前三段）
+    rows = conn.execute('''
+        SELECT ip_address FROM devices
+        WHERE ip_address IS NOT NULL AND ip_address != ''
+              AND ip_address != '未知' AND ip_address != '0.0.0.0'
+    ''').fetchall()
+    conn.close()
+
+    subnets = {}
+    for r in rows:
+        ip = r['ip_address'].strip()
+        parts = ip.split('.')
+        if len(parts) == 4:
+            subnet = f"{parts[0]}.{parts[1]}.{parts[2]}"
+            subnets[subnet] = subnets.get(subnet, 0) + 1
+
+    # 排序：按设备数降序
+    result = [{'subnet': k, 'device_count': v} for k, v in subnets.items()]
+    result.sort(key=lambda x: x['device_count'], reverse=True)
+    return jsonify(result)
+
+
+@app.route('/api/ip-usage', methods=['GET'])
+def get_ip_usage():
+    """获取指定子网的IP使用情况"""
+    subnet = request.args.get('subnet', '').strip()
+    if not subnet:
+        return jsonify({'error': '请指定子网，如 192.168.1'}), 400
+
+    conn = get_db()
+    # 查找该子网下所有已使用的IP
+    rows = conn.execute('''
+        SELECT d.id, d.ip_address, d.computer_name, d.user_name, d.mac_address,
+               d.dhcp_enabled, d.collected_at,
+               dept.name as department_name, p.name as project_name
+        FROM devices d
+        LEFT JOIN departments dept ON d.department_id = dept.id
+        LEFT JOIN projects p ON dept.project_id = p.id
+        WHERE d.ip_address LIKE ? AND d.ip_address != '未知' AND d.ip_address != '0.0.0.0'
+    ''', (f'{subnet}.%',)).fetchall()
+    conn.close()
+
+    used_ips = {}
+    for r in rows:
+        ip = r['ip_address'].strip()
+        parts = ip.split('.')
+        if len(parts) == 4:
+            last_octet = int(parts[3])
+            if 0 <= last_octet <= 255:
+                used_ips[last_octet] = {
+                    'id': r['id'],
+                    'ip_address': ip,
+                    'computer_name': r['computer_name'],
+                    'user_name': r['user_name'],
+                    'mac_address': r['mac_address'],
+                    'dhcp_enabled': r['dhcp_enabled'],
+                    'collected_at': r['collected_at'],
+                    'department_name': r['department_name'],
+                    'project_name': r['project_name'],
+                }
+
+    return jsonify({
+        'subnet': subnet,
+        'used_count': len(used_ips),
+        'total_count': 256,
+        'used_ips': used_ips,
+    })
 
 
 @app.route('/api/devices/export', methods=['GET'])
@@ -1366,7 +1628,7 @@ def get_stats():
     dept_count = conn.execute('SELECT COUNT(*) FROM departments').fetchone()[0]
     device_count = conn.execute('SELECT COUNT(*) FROM devices').fetchone()[0]
     today_count = conn.execute(
-        "SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now')"
+        "SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now', 'localtime')"
     ).fetchone()[0]
 
     # 各项目设备数量
@@ -1691,14 +1953,15 @@ def v1_create_device():
                 operator=f'API:{key_name}')
 
     cursor = conn.cursor()
+    now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
         INSERT INTO devices (
             department_id, user_name, user_phone, user_position,
             computer_name, ip_address, mac_address, dhcp_enabled,
             os_info, cpu_info, ram_info, disk_info,
             motherboard_info, gpu_info, network_adapter,
-            subnet_mask, gateway, dns_servers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            subnet_mask, gateway, dns_servers, collected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('department_id'), data.get('user_name'), data.get('user_phone'),
         data.get('user_position'), data.get('computer_name'), data.get('ip_address'),
@@ -1706,6 +1969,7 @@ def v1_create_device():
         data.get('cpu_info'), data.get('ram_info'), data.get('disk_info'),
         data.get('motherboard_info'), data.get('gpu_info'), data.get('network_adapter'),
         data.get('subnet_mask'), data.get('gateway'), data.get('dns_servers'),
+        now_local,
     ))
     conn.commit()
     device_id = cursor.lastrowid
@@ -1882,7 +2146,7 @@ def v1_get_stats():
     dept_count = conn.execute('SELECT COUNT(*) FROM departments').fetchone()[0]
     device_count = conn.execute('SELECT COUNT(*) FROM devices').fetchone()[0]
     today_count = conn.execute(
-        "SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now')"
+        "SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now', 'localtime')"
     ).fetchone()[0]
     project_stats = conn.execute('''
         SELECT p.name, COALESCE(COUNT(d.id), 0) as count

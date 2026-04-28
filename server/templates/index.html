@@ -143,6 +143,7 @@
     <div class="nav-tab" data-tab="users">👥 用户管理</div>
     <div class="nav-tab" data-tab="departments">🏢 单位管理</div>
     <div class="nav-tab" data-tab="devices">💻 设备列表</div>
+    <div class="nav-tab" data-tab="ipmap">🌐 IP 分布</div>
     <div class="nav-tab" data-tab="logs">📋 操作日志</div>
     <div class="nav-tab" data-tab="apikeys">🔑 API 管理</div>
 </div>
@@ -377,8 +378,36 @@
                     <button class="btn btn-warning" onclick="checkDuplicates()">🔍 查重</button>
                     <button class="btn btn-success" onclick="exportDevices('xlsx')">📥 导出 Excel</button>
                     <button class="btn btn-outline" onclick="exportDevices('csv')">📥 导出 CSV</button>
+                    <button class="btn btn-primary" onclick="toggleDeviceImportArea()">📤 批量导入</button>
                 </div>
             </div>
+        </div>
+        <!-- 设备导入区域 -->
+        <div class="import-area" id="deviceImportArea">
+            <h3>📤 批量导入设备</h3>
+            <p>支持 <strong>CSV</strong> 和 <strong>Excel (.xlsx)</strong> 文件。列顺序：使用人（必填）、联系电话、安装位置、电脑名称、IP地址、MAC地址、DHCP、操作系统、CPU、内存、硬盘、主板、显卡、网卡、子网掩码、默认网关、DNS服务器。第一行表头自动跳过。</p>
+            <div class="form-row" style="align-items:flex-end;">
+                <div class="form-group">
+                    <label>所属单位 *</label>
+                    <select id="deviceImportProject" onchange="onDeviceImportProjectChange()" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="">-- 先选项目 --</option></select>
+                </div>
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <select id="deviceImportDept" style="padding:8px 12px; border:1px solid var(--border); border-radius:6px;"><option value="">-- 请选择单位 --</option></select>
+                </div>
+                <div class="form-group">
+                    <label>选择文件</label>
+                    <div class="file-input-wrapper">
+                        <button class="btn btn-primary">📁 选择 CSV / Excel 文件</button>
+                        <input type="file" id="deviceImportFile" accept=".csv,.xlsx,.xls" onchange="onDeviceImportFileSelected(this)">
+                    </div>
+                </div>
+                <button class="btn btn-success" id="deviceImportBtn" onclick="doDeviceImport()" disabled>🚀 开始导入</button>
+                <button class="btn btn-outline" onclick="downloadDeviceImportTemplate()">📄 下载模板</button>
+                <button class="btn" style="background:#eee;" onclick="toggleDeviceImportArea()">取消</button>
+            </div>
+            <div id="deviceImportFileName" style="font-size:12px;color:#666;margin-top:4px;"></div>
+            <div class="import-result" id="deviceImportResult"></div>
         </div>
         <div class="card" style="padding:0; overflow:hidden;">
             <table>
@@ -390,6 +419,23 @@
                 </thead>
                 <tbody id="deviceTable"></tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- IP Map -->
+    <div class="tab-content" id="tab-ipmap">
+        <div class="card">
+            <div class="card-title">
+                <span>🌐 IP 地址使用分布</span>
+                <div class="form-group" style="margin-bottom:0;">
+                    <select id="ipSubnetSelect" onchange="loadIpMap()" style="padding:8px 14px; border:1px solid var(--border); border-radius:6px; font-size:14px; min-width:200px;">
+                        <option value="">-- 选择网段 --</option>
+                    </select>
+                </div>
+            </div>
+            <div id="ipMapStats" style="margin-bottom:16px;"></div>
+            <div id="ipMapGrid"></div>
+            <div id="ipMapTooltip" style="display:none; position:fixed; background:rgba(0,0,0,0.85); color:#fff; padding:10px 14px; border-radius:8px; font-size:12px; z-index:3000; pointer-events:none; max-width:280px; line-height:1.6;"></div>
         </div>
     </div>
 
@@ -640,6 +686,29 @@ function showToast(msg, type = 'info') {
     setTimeout(() => toast.classList.remove('show'), 3000);
 }
 
+// 格式化时间：兼容旧数据（UTC存储）和新数据（本地时间存储）
+function formatTime(ts) {
+    if (!ts) return '-';
+    try {
+        // 如果时间字符串包含 'Z' 或时区偏移，直接解析
+        // 否则判断：如果时间比当前时间大8小时范围外，认为是UTC需加8小时
+        const d = new Date(ts + 'Z');  // 尝试作为UTC解析
+        const dLocal = new Date(ts);   // 作为本地时间解析
+        const now = new Date();
+        // 如果作为UTC解析后更接近当前时间，说明原始是UTC存储
+        const diffUtc = Math.abs(now - d);
+        const diffLocal = Math.abs(now - dLocal);
+        if (diffUtc < diffLocal && diffLocal - diffUtc > 3600000) {
+            // UTC解析更合理（差异>1小时），用UTC
+            return d.toLocaleString('zh-CN');
+        }
+        // 本地时间更合理，直接用
+        return dLocal.toLocaleString('zh-CN');
+    } catch(e) {
+        return ts;
+    }
+}
+
 // Tab switching
 document.querySelectorAll('.nav-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -652,6 +721,7 @@ document.querySelectorAll('.nav-tab').forEach(tab => {
         if (tab.dataset.tab === 'users') { loadProjectSelects(); loadUsers(); }
         if (tab.dataset.tab === 'departments') { loadProjectSelects(); loadDepartments(); }
         if (tab.dataset.tab === 'devices') { loadProjectSelects(); loadDevices(); }
+        if (tab.dataset.tab === 'ipmap') { loadIpSubnets(); }
         if (tab.dataset.tab === 'logs') { loadLogTypes(); loadLogs(); }
         if (tab.dataset.tab === 'apikeys') { loadApiKeys(); }
     });
@@ -1228,7 +1298,7 @@ async function loadDevices() {
             <td><code>${d.ip_address || '-'}</code></td>
             <td title="${d.mac_address||''}"><code>${(d.mac_address||'-').substring(0,17)}</code></td>
             <td>${d.dhcp_enabled === '是' ? '<span class="badge badge-dhcp">DHCP</span>' : d.dhcp_enabled === '否' ? '<span class="badge badge-static">静态</span>' : '-'}</td>
-            <td>${d.collected_at ? new Date(d.collected_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>${formatTime(d.collected_at)}</td>
             <td>
                 <button class="btn btn-primary btn-sm" onclick="viewDevice(${d.id})">详情</button>
                 <button class="btn btn-warning btn-sm" onclick='editDevice(${JSON.stringify(d)})'>编辑</button>
@@ -1266,7 +1336,7 @@ async function viewDevice(id) {
         ['内存', d.ram_info], ['硬盘', d.disk_info],
         ['主板', d.motherboard_info], ['显卡', d.gpu_info],
         ['网卡', d.network_adapter],
-        ['采集时间', d.collected_at ? new Date(d.collected_at).toLocaleString('zh-CN') : '-'],
+        ['采集时间', formatTime(d.collected_at)],
     ];
     document.getElementById('detailContent').innerHTML = fields.map(([k, v]) =>
         `<div class="detail-item"><div class="key">${k}</div><div class="val">${v || '-'}</div></div>`
@@ -1343,6 +1413,205 @@ async function deleteDevice(id) {
     showToast('删除成功', 'success'); loadDevices();
 }
 
+// ==================== Device Import ====================
+function toggleDeviceImportArea() {
+    const area = document.getElementById('deviceImportArea');
+    area.classList.toggle('show');
+    document.getElementById('deviceImportResult').className = 'import-result';
+    document.getElementById('deviceImportResult').textContent = '';
+    document.getElementById('deviceImportFileName').textContent = '';
+    document.getElementById('deviceImportBtn').disabled = true;
+    document.getElementById('deviceImportFile').value = '';
+    // 加载项目选择
+    if (area.classList.contains('show')) {
+        loadDeviceImportProjects();
+    }
+}
+
+async function loadDeviceImportProjects() {
+    const res = await fetch(API + '/api/projects');
+    const projects = await res.json();
+    const sel = document.getElementById('deviceImportProject');
+    sel.innerHTML = '<option value="">-- 先选项目 --</option>';
+    projects.forEach(p => {
+        sel.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+    });
+}
+
+async function onDeviceImportProjectChange() {
+    const projectId = document.getElementById('deviceImportProject').value;
+    const deptSel = document.getElementById('deviceImportDept');
+    deptSel.innerHTML = '<option value="">-- 请选择单位 --</option>';
+    if (!projectId) return;
+    try {
+        const res = await fetch(API + `/api/departments?project_id=${projectId}`);
+        const depts = await res.json();
+        depts.forEach(d => {
+            deptSel.innerHTML += `<option value="${d.id}">${d.name}</option>`;
+        });
+    } catch (e) {
+        console.error('onDeviceImportProjectChange error:', e);
+    }
+}
+
+function onDeviceImportFileSelected(input) {
+    const file = input.files[0];
+    document.getElementById('deviceImportFileName').textContent = file ? '已选择: ' + file.name : '';
+    document.getElementById('deviceImportBtn').disabled = !file;
+}
+
+async function doDeviceImport() {
+    const file = document.getElementById('deviceImportFile').files[0];
+    const deptId = document.getElementById('deviceImportDept').value;
+    if (!file) { showToast('请先选择文件', 'error'); return; }
+    if (!deptId) { showToast('请选择所属单位', 'error'); return; }
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('department_id', deptId);
+    const resultDiv = document.getElementById('deviceImportResult');
+    resultDiv.className = 'import-result'; resultDiv.textContent = '正在导入...'; resultDiv.style.display = 'block';
+    try {
+        const res = await fetch(API + '/api/devices/batch', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (res.ok) {
+            resultDiv.className = 'import-result success';
+            resultDiv.textContent = data.message + (data.details ? '\n' + data.details.slice(0,5).join('\n') : '');
+            showToast('导入完成', 'success'); loadDevices();
+        } else { resultDiv.className = 'import-result error'; resultDiv.textContent = data.error; showToast('导入失败', 'error'); }
+    } catch(e) { resultDiv.className = 'import-result error'; resultDiv.textContent = '网络错误'; }
+}
+
+function downloadDeviceImportTemplate() { window.open(API + '/api/devices/import-template', '_blank'); }
+
+// ==================== IP Map ====================
+async function loadIpSubnets() {
+    try {
+        const res = await fetch(API + '/api/ip-subnets');
+        const subnets = await res.json();
+        const sel = document.getElementById('ipSubnetSelect');
+        sel.innerHTML = '<option value="">-- 选择网段 --</option>';
+        subnets.forEach(s => {
+            sel.innerHTML += `<option value="${s.subnet}">${s.subnet}.0/24 (${s.device_count} 台设备)</option>`;
+        });
+    } catch(e) {
+        console.error('loadIpSubnets error:', e);
+    }
+}
+
+async function loadIpMap() {
+    const subnet = document.getElementById('ipSubnetSelect').value;
+    if (!subnet) {
+        document.getElementById('ipMapStats').innerHTML = '';
+        document.getElementById('ipMapGrid').innerHTML = '<div class="empty"><div class="icon">🌐</div><p>请选择一个网段查看IP使用分布</p></div>';
+        return;
+    }
+    try {
+        const res = await fetch(API + `/api/ip-usage?subnet=${encodeURIComponent(subnet)}`);
+        const data = await res.json();
+        
+        const usedCount = data.used_count;
+        const totalCount = data.total_count;
+        const freeCount = totalCount - usedCount;
+        const usagePercent = ((usedCount / totalCount) * 100).toFixed(1);
+        
+        document.getElementById('ipMapStats').innerHTML = `
+            <div style="display:flex; gap:16px; flex-wrap:wrap;">
+                <div class="stat-card" style="flex:1;min-width:120px;text-align:center;">
+                    <div class="label">网段</div>
+                    <div class="value" style="font-size:20px;">${subnet}.0/24</div>
+                </div>
+                <div class="stat-card" style="flex:1;min-width:120px;text-align:center;">
+                    <div class="label">已使用</div>
+                    <div class="value" style="color:#ea4335;">${usedCount}</div>
+                </div>
+                <div class="stat-card" style="flex:1;min-width:120px;text-align:center;">
+                    <div class="label">未使用</div>
+                    <div class="value" style="color:#34a853;">${freeCount}</div>
+                </div>
+                <div class="stat-card" style="flex:1;min-width:120px;text-align:center;">
+                    <div class="label">使用率</div>
+                    <div class="value" style="color:${parseFloat(usagePercent)>80?'#ea4335':'#1a73e8'};">${usagePercent}%</div>
+                </div>
+            </div>
+            <div style="margin-top:12px; height:8px; background:#e0e0e0; border-radius:4px; overflow:hidden;">
+                <div style="width:${usagePercent}%; height:100%; background:${parseFloat(usagePercent)>80?'#ea4335':'#1a73e8'}; border-radius:4px; transition:width 0.5s;"></div>
+            </div>
+        `;
+        
+        // 生成IP网格（16列 x 16行 = 256个IP）
+        let gridHtml = '<div style="display:grid; grid-template-columns:repeat(16,1fr); gap:3px; margin-top:8px;">';
+        for (let i = 0; i < 256; i++) {
+            const ip = `${subnet}.${i}`;
+            const info = data.used_ips[String(i)];
+            const isUsed = !!info;
+            const bgColor = isUsed ? '#ea4335' : '#e8f5e9';
+            const textColor = isUsed ? '#fff' : '#666';
+            const borderColor = isUsed ? '#c5221f' : '#c8e6c9';
+            const cursor = isUsed ? 'pointer' : 'default';
+            const title = isUsed 
+                ? `${ip}\n使用人: ${info.user_name || '-'}\n电脑: ${info.computer_name || '-'}\nMAC: ${info.mac_address || '-'}\n单位: ${info.department_name || '-'}`
+                : `${ip}\n未使用`;
+            
+            gridHtml += `<div style="
+                background:${bgColor}; color:${textColor}; 
+                border:1px solid ${borderColor};
+                border-radius:3px; padding:2px; 
+                font-size:10px; text-align:center; 
+                cursor:${cursor}; transition:all 0.15s;
+                line-height:1.4; font-family:Consolas,monospace;
+                min-height:22px; display:flex; align-items:center; justify-content:center;
+            " 
+            onmouseover="showIpTooltip(event, ${i}, ${isUsed ? 'true' : 'false'})"
+            onmouseout="hideIpTooltip()"
+            title="${title}"
+            >${i}</div>`;
+        }
+        gridHtml += '</div>';
+        gridHtml += '<div style="display:flex; gap:16px; margin-top:12px; font-size:12px; color:#666;">'
+            + '<div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;background:#ea4335;border-radius:2px;"></div> 已使用</div>'
+            + '<div style="display:flex;align-items:center;gap:4px;"><div style="width:14px;height:14px;background:#e8f5e9;border:1px solid #c8e6c9;border-radius:2px;"></div> 未使用</div>'
+            + '</div>';
+        
+        document.getElementById('ipMapGrid').innerHTML = gridHtml;
+        // 存储当前数据供 tooltip 使用
+        window._currentIpData = data;
+        window._currentSubnet = subnet;
+    } catch(e) {
+        console.error('loadIpMap error:', e);
+        document.getElementById('ipMapGrid').innerHTML = '<div class="empty">加载失败</div>';
+    }
+}
+
+function showIpTooltip(event, lastOctet, isUsed) {
+    const tooltip = document.getElementById('ipMapTooltip');
+    const ip = `${window._currentSubnet}.${lastOctet}`;
+    if (isUsed && window._currentIpData) {
+        const info = window._currentIpData.used_ips[String(lastOctet)];
+        if (info) {
+            tooltip.innerHTML = `<strong>${ip}</strong><br>`
+                + `使用人: ${info.user_name || '-'}<br>`
+                + `电脑: ${info.computer_name || '-'}<br>`
+                + `MAC: ${info.mac_address || '-'}<br>`
+                + `单位: ${info.department_name || '-'}<br>`
+                + `项目: ${info.project_name || '-'}<br>`
+                + `DHCP: ${info.dhcp_enabled || '-'}<br>`
+                + `采集: ${formatTime(info.collected_at)}`;
+        }
+    } else {
+        tooltip.innerHTML = `<strong>${ip}</strong><br>未使用`;
+    }
+    tooltip.style.display = 'block';
+    // 定位
+    const x = event.clientX + 15;
+    const y = event.clientY + 15;
+    tooltip.style.left = Math.min(x, window.innerWidth - 300) + 'px';
+    tooltip.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+}
+
+function hideIpTooltip() {
+    document.getElementById('ipMapTooltip').style.display = 'none';
+}
+
 // ==================== Logs ====================
 let logCurrentPage = 1;
 
@@ -1417,7 +1686,7 @@ async function loadLogs(page) {
                 <td title="${escapeAttr(l.detail || '')}" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${l.detail || '-'}</td>
                 <td>${l.operator || '-'}</td>
                 <td><code>${l.ip_address || '-'}</code></td>
-                <td>${l.created_at ? new Date(l.created_at).toLocaleString('zh-CN') : '-'}</td>
+                <td>${formatTime(l.created_at)}</td>
                 <td><button class="btn btn-danger btn-sm" onclick="deleteLog(${l.id})">删除</button></td>
             </tr>`;
     }).join('');
@@ -1467,8 +1736,8 @@ async function loadApiKeys() {
             <td><span class="badge ${k.permissions.includes('write') ? 'badge-info' : 'badge-success'}">${k.permissions}</span></td>
             <td>${k.is_active ? '<span class="badge badge-success">启用</span>' : '<span class="badge badge-danger">禁用</span>'}</td>
             <td>${k.description || '-'}</td>
-            <td>${k.last_used_at ? new Date(k.last_used_at).toLocaleString('zh-CN') : '<span style="color:#999">未使用</span>'}</td>
-            <td>${k.created_at ? new Date(k.created_at).toLocaleString('zh-CN') : '-'}</td>
+            <td>${formatTime(k.last_used_at)}</td>
+            <td>${formatTime(k.created_at)}</td>
             <td>
                 <button class="btn btn-sm ${k.is_active ? 'btn-warning' : 'btn-success'}" onclick="toggleApiKey(${k.id}, ${k.is_active})">${k.is_active ? '禁用' : '启用'}</button>
                 <button class="btn btn-outline btn-sm" onclick="regenerateApiKey(${k.id})">重置</button>

@@ -422,14 +422,15 @@ def submit_device():
                 operator=username)
 
     cursor = conn.cursor()
+    now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
         INSERT INTO devices (
             department_id, user_name, user_phone, user_position,
             computer_name, ip_address, mac_address, dhcp_enabled,
             os_info, cpu_info, ram_info, disk_info,
             motherboard_info, gpu_info, network_adapter,
-            subnet_mask, gateway, dns_servers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            subnet_mask, gateway, dns_servers, collected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('department_id'), data.get('user_name'), data.get('user_phone'),
         data.get('user_position'), data.get('computer_name'), data.get('ip_address'),
@@ -437,6 +438,7 @@ def submit_device():
         data.get('cpu_info'), data.get('ram_info'), data.get('disk_info'),
         data.get('motherboard_info'), data.get('gpu_info'), data.get('network_adapter'),
         data.get('subnet_mask'), data.get('gateway'), data.get('dns_servers'),
+        now_local,
     ))
     conn.commit()
     device_id = cursor.lastrowid
@@ -555,13 +557,14 @@ def v1_create_device():
         return api_response(data={'duplicates': duplicates}, message='检测到IP或MAC地址重复，设置 force=true 强制提交', code=409)
 
     cursor = conn.cursor()
+    now_local = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     cursor.execute('''
         INSERT INTO devices (department_id, user_name, user_phone, user_position,
             computer_name, ip_address, mac_address, dhcp_enabled,
             os_info, cpu_info, ram_info, disk_info,
             motherboard_info, gpu_info, network_adapter,
-            subnet_mask, gateway, dns_servers
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            subnet_mask, gateway, dns_servers, collected_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
         data.get('department_id'), data.get('user_name'), data.get('user_phone'),
         data.get('user_position'), data.get('computer_name'), data.get('ip_address'),
@@ -569,6 +572,7 @@ def v1_create_device():
         data.get('cpu_info'), data.get('ram_info'), data.get('disk_info'),
         data.get('motherboard_info'), data.get('gpu_info'), data.get('network_adapter'),
         data.get('subnet_mask'), data.get('gateway'), data.get('dns_servers'),
+        now_local,
     ))
     conn.commit()
     device_id = cursor.lastrowid
@@ -611,7 +615,7 @@ def v1_get_stats():
     """获取统计信息"""
     conn = get_db()
     device_count = conn.execute('SELECT COUNT(*) FROM devices').fetchone()[0]
-    today_count = conn.execute("SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now')").fetchone()[0]
+    today_count = conn.execute("SELECT COUNT(*) FROM devices WHERE DATE(collected_at) = DATE('now', 'localtime')").fetchone()[0]
     conn.close()
     return api_response(data={'device_count': device_count, 'today_count': today_count})
 
