@@ -420,7 +420,7 @@ def login():
         'display_name': user['display_name'],
         'role': user['role'],
         'project_id': user['project_id'],
-        'project_name': user['project_name'],
+        'project_name': user['project_name'] or ('全部项目' if user['role'] == 'admin' else None),
     })
 
 

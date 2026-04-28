@@ -409,6 +409,8 @@ class CollectorApp:
         self.departments = []
         self.device_info = {}
         self.logged_in_user = None
+        self._login_projects = []
+        self._login_departments = []
 
         self._build_ui()
         # 延迟采集设备信息（先让窗口渲染完成，避免 wmic 卡住导致窗口白屏）
@@ -541,15 +543,24 @@ class CollectorApp:
             req = urllib.request.Request(url, data=payload,
                                           headers={'Content-Type': 'application/json'})
             with urllib.request.urlopen(req, timeout=5) as resp:
-                user = json.loads(resp.read().decode('utf-8'))
+                result = json.loads(resp.read().decode('utf-8'))
 
+            # data_login 返回 {user: {...}, departments: [...], projects: [...]}
+            user = result.get('user', result)
             self.logged_in_user = user
+
+            # 保存项目列表和单位列表
+            self._login_projects = result.get('projects', [])
+            self._login_departments = result.get('departments', [])
 
             if user.get('role') == 'admin':
                 self.login_status.config(text=f"✅ 管理员: {user.get('display_name', username)}", foreground="#1a73e8")
-                self.project_label.config(text="")
+                if user.get('project_name'):
+                    self.project_label.config(text=f"📂 项目: {user['project_name']}")
+                else:
+                    self.project_label.config(text="📂 全部项目")
             else:
-                project_name = user.get('project_name', '未关联')
+                project_name = user.get('project_name') or '未关联'
                 self.login_status.config(text=f"✅ {user.get('display_name', username)}", foreground="#34a853")
                 self.project_label.config(text=f"📂 项目: {project_name}")
 
@@ -579,24 +590,31 @@ class CollectorApp:
 
         project_id = self.logged_in_user.get('project_id')
 
-        url = self.server_url.get().rstrip('/') + '/api/departments'
-        if project_id:
-            url += f'?project_id={project_id}'
+        # 优先使用登录时返回的单位数据，避免额外请求
+        if self._login_departments:
+            data = self._login_departments
+            # 如果用户有关联项目，只显示该项目的单位
+            if project_id:
+                data = [d for d in data if d.get('project_id') == project_id]
+        else:
+            url = self.server_url.get().rstrip('/') + '/api/departments'
+            if project_id:
+                url += f'?project_id={project_id}'
 
-        try:
-            req = urllib.request.Request(url)
-            with urllib.request.urlopen(req, timeout=5) as resp:
-                data = json.loads(resp.read().decode('utf-8'))
+            try:
+                req = urllib.request.Request(url)
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+            except Exception as e:
+                messagebox.showerror("错误", f"获取单位列表失败:\n{str(e)}")
+                return
 
-            self.departments = data
-            dept_names = [f"{d['name']} (ID:{d['id']})" for d in data]
-            self.dept_combo['values'] = dept_names
+        self.departments = data
+        dept_names = [f"{d['name']} (ID:{d['id']})" for d in data]
+        self.dept_combo['values'] = dept_names
 
-            if dept_names:
-                self.dept_combo.current(0)
-
-        except Exception as e:
-            messagebox.showerror("错误", f"获取单位列表失败:\n{str(e)}")
+        if dept_names:
+            self.dept_combo.current(0)
 
     def _collect_info(self):
         """采集设备信息"""

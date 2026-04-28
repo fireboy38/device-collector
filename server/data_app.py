@@ -293,14 +293,35 @@ def data_login():
         conn.close()
         return jsonify({'error': '用户名或密码错误'}), 401
 
-    # 获取用户所属项目的单位列表
+    # 获取项目列表和单位列表
     departments = []
+    projects = []
+    is_admin = (user['role'] == 'admin')
+
     if user['project_id']:
+        # 有关联项目：返回该项目下的单位
         rows = conn.execute(
             'SELECT id, name, code, description FROM departments WHERE project_id = ? ORDER BY id',
             (user['project_id'],)
         ).fetchall()
         departments = [dict(r) for r in rows]
+        # 返回关联的项目
+        proj = conn.execute(
+            'SELECT id, name, code, description FROM projects WHERE id = ?',
+            (user['project_id'],)
+        ).fetchone()
+        if proj:
+            projects = [dict(proj)]
+    elif is_admin:
+        # admin 无关联项目：返回所有项目+所有单位
+        proj_rows = conn.execute(
+            'SELECT id, name, code, description FROM projects ORDER BY id'
+        ).fetchall()
+        projects = [dict(r) for r in proj_rows]
+        dept_rows = conn.execute(
+            'SELECT id, name, code, description, project_id FROM departments ORDER BY project_id, id'
+        ).fetchall()
+        departments = [dict(r) for r in dept_rows]
 
     conn.close()
 
@@ -311,17 +332,21 @@ def data_login():
             operator=user['username'],
             ip_address=request.remote_addr)
 
-    return jsonify({
+    result = {
         'user': {
             'id': user['id'],
             'username': user['username'],
             'display_name': user['display_name'],
             'role': user['role'],
             'project_id': user['project_id'],
-            'project_name': user['project_name'],
+            'project_name': user['project_name'] or ('全部项目' if is_admin else None),
         },
         'departments': departments
-    })
+    }
+    # admin 无关联项目时返回项目列表供选择
+    if is_admin and not user['project_id']:
+        result['projects'] = projects
+    return jsonify(result)
 
 
 # 兼容客户端使用的 /api/login 路径（客户端默认调用此路径）
