@@ -391,14 +391,20 @@ class CollectorApp:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("设备信息采集器")
-        self.root.geometry("720x880")
-        self.root.resizable(False, False)
+
+        # 自适应窗口大小：1024x768 屏幕也可完整显示
+        WIN_W = 700
+        screen_h = self.root.winfo_screenheight()
+        # 预留任务栏 40px，窗口高度取 min(880, 可用高度-20)
+        WIN_H = min(880, screen_h - 60)
+        self.root.geometry(f"{WIN_W}x{WIN_H}")
+        self.root.minsize(WIN_W, 600)
+        self.root.resizable(False, True)
 
         # 居中
-        self.root.update_idletasks()
-        x = (self.root.winfo_screenwidth() - 720) // 2
-        y = (self.root.winfo_screenheight() - 880) // 2
-        self.root.geometry(f"720x880+{x}+{y}")
+        x = (self.root.winfo_screenwidth() - WIN_W) // 2
+        y = max(0, (screen_h - WIN_H) // 2 - 20)
+        self.root.geometry(f"{WIN_W}x{WIN_H}+{x}+{y}")
 
         # 从 CONFIG.INI 加载配置
         self.config = load_config()
@@ -421,38 +427,72 @@ class CollectorApp:
             self.root.after(1000, self._auto_login)
 
     def _build_ui(self):
-        """构建界面"""
-        # ===== 顶部可滚动区域 =====
-        top_frame = ttk.Frame(self.root, padding=15)
-        top_frame.pack(fill=tk.BOTH, expand=True)
+        """构建界面（自适应屏幕高度，1024x768 也可完整显示）"""
 
-        # 标题
+        # ===== 底部固定按钮（先 pack，确保始终可见） =====
+        bottom_frame = tk.Frame(self.root, bg="#ffffff", height=56)
+        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=12, pady=(0, 10))
+        bottom_frame.pack_propagate(False)
+
+        tk.Button(
+            bottom_frame, text="🔄 重新采集", command=self._collect_info,
+            font=("Microsoft YaHei UI", 11),
+            bg="#f0f0f0", fg="#333", activebackground="#e0e0e0",
+            relief=tk.FLAT, padx=14, pady=4, cursor="hand2"
+        ).pack(side=tk.LEFT, pady=8)
+
+        self.submit_btn = tk.Button(
+            bottom_frame, text="📤 提交到服务器", command=self._submit,
+            font=("Microsoft YaHei UI", 13, "bold"),
+            bg="#1a73e8", fg="white", activebackground="#1557b0", activeforeground="white",
+            relief=tk.FLAT, padx=24, pady=6, cursor="hand2"
+        )
+        self.submit_btn.pack(side=tk.RIGHT, pady=8)
+
+        # ===== 中间可滚动区域 =====
+        canvas = tk.Canvas(self.root, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self.root, orient=tk.VERTICAL, command=canvas.yview)
+        self._scroll_frame = ttk.Frame(canvas)
+
+        self._scroll_frame.bind("<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=self._scroll_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0), pady=(8, 0))
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 2), pady=(8, 0))
+
+        # 鼠标滚轮支持
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+
+        top_frame = self._scroll_frame
+
+        # 标题（缩小字号节省空间）
         title_frame = ttk.Frame(top_frame)
-        title_frame.pack(fill=tk.X, pady=(0, 10))
+        title_frame.pack(fill=tk.X, pady=(0, 6))
         ttk.Label(title_frame, text="🖥️ 设备信息采集器",
-                  font=("Microsoft YaHei UI", 18, "bold")).pack(side=tk.LEFT)
+                  font=("Microsoft YaHei UI", 16, "bold")).pack(side=tk.LEFT)
         ttk.Label(title_frame, text="客户端",
-                  font=("Microsoft YaHei UI", 12), foreground="#888").pack(side=tk.LEFT, padx=(8, 0))
+                  font=("Microsoft YaHei UI", 10), foreground="#888").pack(side=tk.LEFT, padx=(6, 0))
 
         # ===== 服务器配置 + 登录 =====
-        server_frame = ttk.LabelFrame(top_frame, text=" 服务器配置与登录 ", padding=10)
-        server_frame.pack(fill=tk.X, pady=(0, 8))
+        server_frame = ttk.LabelFrame(top_frame, text=" 服务器配置与登录 ", padding=8)
+        server_frame.pack(fill=tk.X, pady=(0, 6))
 
-        # 服务器地址
         row0 = ttk.Frame(server_frame)
-        row0.pack(fill=tk.X, pady=(0, 6))
+        row0.pack(fill=tk.X, pady=(0, 4))
         ttk.Label(row0, text="服务地址:", width=8).pack(side=tk.LEFT)
-        ttk.Entry(row0, textvariable=self.server_url, width=40).pack(side=tk.LEFT, padx=4)
+        ttk.Entry(row0, textvariable=self.server_url, width=38).pack(side=tk.LEFT, padx=4)
 
-        # 用户名 + 密码
         row1 = ttk.Frame(server_frame)
-        row1.pack(fill=tk.X, pady=(0, 6))
+        row1.pack(fill=tk.X, pady=(0, 4))
         ttk.Label(row1, text="用户名:", width=8).pack(side=tk.LEFT)
-        ttk.Entry(row1, textvariable=self.username_var, width=18).pack(side=tk.LEFT, padx=4)
-        ttk.Label(row1, text="密码:").pack(side=tk.LEFT, padx=(8, 0))
+        ttk.Entry(row1, textvariable=self.username_var, width=16).pack(side=tk.LEFT, padx=4)
+        ttk.Label(row1, text="密码:").pack(side=tk.LEFT, padx=(6, 0))
         ttk.Entry(row1, textvariable=self.password_var, width=14, show="*").pack(side=tk.LEFT, padx=4)
 
-        # 登录按钮 + 状态
         row2 = ttk.Frame(server_frame)
         row2.pack(fill=tk.X)
         ttk.Button(row2, text="🔐 登录", command=self._login).pack(side=tk.LEFT)
@@ -463,65 +503,45 @@ class CollectorApp:
         self.project_label.pack(side=tk.LEFT, padx=4)
 
         # ===== 人员信息 =====
-        person_frame = ttk.LabelFrame(top_frame, text=" 使用人员信息 ", padding=10)
-        person_frame.pack(fill=tk.X, pady=(0, 8))
+        person_frame = ttk.LabelFrame(top_frame, text=" 使用人员信息 ", padding=8)
+        person_frame.pack(fill=tk.X, pady=(0, 6))
 
-        # 单位选择
         row_dept = ttk.Frame(person_frame)
-        row_dept.pack(fill=tk.X, pady=(0, 6))
+        row_dept.pack(fill=tk.X, pady=(0, 4))
         ttk.Label(row_dept, text="所属单位:", width=8).pack(side=tk.LEFT)
-        self.dept_combo = ttk.Combobox(row_dept, state="readonly", width=36)
+        self.dept_combo = ttk.Combobox(row_dept, state="readonly", width=34)
         self.dept_combo.pack(side=tk.LEFT, padx=4)
 
-        # 使用人
         row_name = ttk.Frame(person_frame)
-        row_name.pack(fill=tk.X, pady=(0, 6))
+        row_name.pack(fill=tk.X, pady=(0, 4))
         ttk.Label(row_name, text="使用人:", width=8).pack(side=tk.LEFT)
-        self.user_name = ttk.Entry(row_name, width=40)
+        self.user_name = ttk.Entry(row_name, width=38)
         self.user_name.pack(side=tk.LEFT, padx=4)
 
-        # 联系电话
         row_phone = ttk.Frame(person_frame)
-        row_phone.pack(fill=tk.X, pady=(0, 6))
+        row_phone.pack(fill=tk.X, pady=(0, 4))
         ttk.Label(row_phone, text="联系电话:", width=8).pack(side=tk.LEFT)
-        self.user_phone = ttk.Entry(row_phone, width=40)
+        self.user_phone = ttk.Entry(row_phone, width=38)
         self.user_phone.pack(side=tk.LEFT, padx=4)
 
-        # 设备安装位置
         row_loc = ttk.Frame(person_frame)
         row_loc.pack(fill=tk.X)
         ttk.Label(row_loc, text="安装位置:", width=8).pack(side=tk.LEFT)
-        self.install_location = ttk.Entry(row_loc, width=40)
+        self.install_location = ttk.Entry(row_loc, width=38)
         self.install_location.pack(side=tk.LEFT, padx=4)
 
         # ===== 设备信息展示 =====
-        device_frame = ttk.LabelFrame(top_frame, text=" 自动采集设备信息 ", padding=10)
-        device_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
+        device_frame = ttk.LabelFrame(top_frame, text=" 自动采集设备信息 ", padding=8)
+        device_frame.pack(fill=tk.X, pady=(0, 6))
 
+        # 固定高度显示设备信息，内部可滚动
         self.info_text = tk.Text(device_frame, font=("Consolas", 10), wrap=tk.WORD,
-                                  bg="#f8f9fb", relief=tk.FLAT, padx=12, pady=8)
-        self.info_text.pack(fill=tk.BOTH, expand=True)
+                                  bg="#f8f9fb", relief=tk.FLAT, padx=10, pady=6, height=12)
+        info_scroll = ttk.Scrollbar(device_frame, orient=tk.VERTICAL, command=self.info_text.yview)
+        self.info_text.configure(yscrollcommand=info_scroll.set)
+        self.info_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        info_scroll.pack(side=tk.RIGHT, fill=tk.Y)
         self.info_text.config(state=tk.DISABLED)
-
-        # ===== 底部固定按钮 =====
-        bottom_frame = tk.Frame(self.root, bg="#ffffff", height=60)
-        bottom_frame.pack(fill=tk.X, side=tk.BOTTOM, padx=15, pady=(0, 15))
-        bottom_frame.pack_propagate(False)
-
-        tk.Button(
-            bottom_frame, text="🔄 重新采集", command=self._collect_info,
-            font=("Microsoft YaHei UI", 11),
-            bg="#f0f0f0", fg="#333", activebackground="#e0e0e0",
-            relief=tk.FLAT, padx=16, pady=6, cursor="hand2"
-        ).pack(side=tk.LEFT, pady=10)
-
-        self.submit_btn = tk.Button(
-            bottom_frame, text="📤 提交到服务器", command=self._submit,
-            font=("Microsoft YaHei UI", 14, "bold"),
-            bg="#1a73e8", fg="white", activebackground="#1557b0", activeforeground="white",
-            relief=tk.FLAT, padx=30, pady=8, cursor="hand2"
-        )
-        self.submit_btn.pack(side=tk.RIGHT, pady=10)
 
     def _auto_login(self):
         """CONFIG.INI 中有账号密码时自动登录"""
