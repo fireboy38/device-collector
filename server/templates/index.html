@@ -64,7 +64,7 @@
         .form-group { display: flex; flex-direction: column; gap: 4px; }
         .form-group label { font-size: 12px; color: var(--text-light); font-weight: 500; }
         .form-group input, .form-group select, .form-group textarea {
-            padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; transition: border-color 0.2s;
+            padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; outline: none; transition: border-color 0.2s; max-width: 100%;
         }
         .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(26,115,232,0.15); }
 
@@ -120,6 +120,110 @@
         .edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .edit-grid .full-width { grid-column: 1 / -1; }
         .edit-grid .form-group input, .edit-grid .form-group select, .edit-grid .form-group textarea { width: 100%; }
+
+        /* ==================== 移动端响应式 ==================== */
+        @media screen and (max-width: 768px) {
+            /* Header */
+            .header { padding: 12px 16px; }
+            .header h1 { font-size: 16px; }
+            .header p { font-size: 11px; display: none; }
+            .header > div { flex-wrap: wrap; gap: 8px; }
+            #currentUser { font-size: 12px !important; }
+
+            /* Nav - 横向滚动，紧凑 */
+            .nav { padding: 0 8px; gap: 0; }
+            .nav-tab { padding: 10px 12px; font-size: 13px; }
+
+            /* Container */
+            .container { padding: 12px 10px; }
+
+            /* Stats - 2列 */
+            .stats-row { grid-template-columns: 1fr 1fr; gap: 8px; }
+            .stat-card { padding: 12px; }
+            .stat-card .value { font-size: 22px; }
+
+            /* Card */
+            .card { padding: 14px 10px; border-radius: 8px; }
+            .card-title { font-size: 14px; flex-direction: column; align-items: flex-start; }
+
+            /* 表格：横向滚动容器 */
+            .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -10px; padding: 0 10px; }
+            table { font-size: 12px; min-width: 600px; }
+            th, td { padding: 7px 6px; }
+            td { max-width: 120px; }
+
+            /* Filter bar */
+            .filter-bar { flex-direction: column; gap: 8px; align-items: stretch; }
+            .filter-bar .form-group { width: 100%; }
+            .filter-bar .form-group input,
+            .filter-bar .form-group select { width: 100%; }
+            .filter-bar .btn-group { flex-wrap: wrap; }
+
+            /* Form row */
+            .form-row { flex-direction: column; gap: 8px; }
+            .form-group input, .form-group select, .form-group textarea { width: 100% !important; }
+
+            /* Modal */
+            .modal { padding: 16px 14px; max-width: 98%; width: 98%; max-height: 92vh; border-radius: 10px; }
+            .modal h2 { font-size: 15px; }
+
+            /* Detail/Edit grid → 单列 */
+            .detail-grid { grid-template-columns: 1fr; }
+            .edit-grid { grid-template-columns: 1fr; }
+            .edit-grid .full-width { grid-column: auto; }
+
+            /* 生成客户端弹窗 */
+            .gc-modal-inner { width: 98% !important; max-width: 98% !important; padding: 14px 12px !important; }
+            #generateClientModal .form-group input[type="text"],
+            #generateClientModal .form-group input[type="password"],
+            #generateClientModal .form-group select { width: 100% !important; }
+            #generateClientModal h3 { font-size: 15px; }
+            #gcDeptSelector .form-group { width: 100%; }
+            /* 打包模式选择→纵向 */
+            #generateClientModal label[id^="gcMode"] { min-width: 100% !important; }
+
+            /* 导入区域 */
+            .import-area { padding: 12px; }
+            .import-area .form-row { flex-direction: column; }
+
+            /* 按钮组 */
+            .btn { padding: 6px 10px; font-size: 12px; }
+            .btn-group { gap: 4px; }
+            .btn-sm { padding: 3px 8px; font-size: 11px; }
+
+            /* Chart bar */
+            .chart-bar .name { width: 80px; font-size: 12px; }
+
+            /* Toast */
+            .toast { right: 10px; left: 10px; font-size: 13px; text-align: center; }
+
+            /* IP Map grid - 8列适配手机 */
+            .ip-grid { grid-template-columns: repeat(8, 1fr) !important; }
+            .ip-grid > div { min-height: 28px !important; font-size: 9px !important; }
+
+            /* Badge */
+            .badge { font-size: 10px; padding: 1px 6px; }
+
+            /* Pagination */
+            #logPagination { flex-wrap: wrap; }
+
+            /* 新建表单区域 */
+            #addProjectForm, #addUserForm, #addDeptForm,
+            #createApiKeyForm { padding: 12px; }
+        }
+
+        @media screen and (max-width: 480px) {
+            .header h1 { font-size: 14px; }
+            .stats-row { grid-template-columns: 1fr 1fr; gap: 6px; }
+            .stat-card .value { font-size: 18px; }
+            .stat-card .label { font-size: 11px; }
+            .nav-tab { padding: 8px 10px; font-size: 12px; }
+            table { min-width: 500px; }
+        }
+
+        /* 表格滚动容器（桌面端也需要） */
+        .card > table { display: block; }
+        .card > thead, .card > tbody { display: table; width: 100%; table-layout: fixed; }
     </style>
 </head>
 <body>
@@ -176,10 +280,12 @@
                     <button class="btn" style="background:#eee;" onclick="document.getElementById('addProjectForm').style.display='none'">取消</button>
                 </div>
             </div>
+            <div class="table-wrap">
             <table>
                 <thead><tr><th>ID</th><th>项目名称</th><th>编码</th><th>描述</th><th>用户数</th><th>单位数</th><th>设备数</th><th>创建时间</th><th>操作</th></tr></thead>
                 <tbody id="projectTable"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -210,17 +316,19 @@
                     <button class="btn" style="background:#eee;" onclick="document.getElementById('addUserForm').style.display='none'">取消</button>
                 </div>
             </div>
+            <div class="table-wrap">
             <table>
                 <thead><tr><th>ID</th><th>用户名</th><th>姓名</th><th>所属项目</th><th>角色</th><th>创建时间</th><th>操作</th></tr></thead>
                 <tbody id="userTable"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
     <!-- Departments -->
     <!-- 生成客户端弹窗 -->
-    <div id="generateClientModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:12px; padding:28px 32px; width:560px; max-width:90vw; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+<div id="generateClientModal" class="gc-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:1000; align-items:center; justify-content:center;">
+    <div class="gc-modal-inner" style="background:white; border-radius:12px; padding:28px 32px; width:560px; max-width:90vw; max-height:85vh; overflow-y:auto; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
             <h3 style="margin:0 0 20px; font-size:18px; display:flex; align-items:center; gap:8px;">📦 生成客户端程序</h3>
             <div style="background:#f0f7ff; border-radius:8px; padding:14px 16px; margin-bottom:18px; border-left:4px solid #1a73e8;">
                 <div style="font-size:13px; color:#666; margin-bottom:4px;">目标用户</div>
@@ -346,10 +454,12 @@
                     <button class="btn" style="background:#eee;" onclick="hideAddDept()">取消</button>
                 </div>
             </div>
+            <div class="table-wrap">
             <table>
                 <thead><tr><th>ID</th><th>所属项目</th><th>单位名称</th><th>编码</th><th>描述</th><th>创建时间</th><th>操作</th></tr></thead>
                 <tbody id="deptTable"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -410,6 +520,7 @@
             <div class="import-result" id="deviceImportResult"></div>
         </div>
         <div class="card" style="padding:0; overflow:hidden;">
+            <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
@@ -419,6 +530,7 @@
                 </thead>
                 <tbody id="deviceTable"></tbody>
             </table>
+            </div>
         </div>
     </div>
 
@@ -461,6 +573,7 @@
             </div>
         </div>
         <div class="card" style="padding:0; overflow:hidden;">
+            <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
@@ -469,6 +582,7 @@
                 </thead>
                 <tbody id="logTable"></tbody>
             </table>
+            </div>
         </div>
         <div style="display:flex; justify-content:center; align-items:center; gap:12px; margin-top:16px;" id="logPagination"></div>
     </div>
@@ -504,10 +618,12 @@
                     <button class="btn btn-primary btn-sm" onclick="copyNewKey()">📋 复制</button>
                 </div>
             </div>
+            <div class="table-wrap">
             <table>
                 <thead><tr><th>ID</th><th>名称</th><th>API Key</th><th>权限</th><th>状态</th><th>描述</th><th>最后使用</th><th>创建时间</th><th>操作</th></tr></thead>
                 <tbody id="apiKeyTable"></tbody>
             </table>
+            </div>
         </div>
     </div>
 </div>
@@ -1539,7 +1655,7 @@ async function loadIpMap() {
         `;
         
         // 生成IP网格（16列 x 16行 = 256个IP）
-        let gridHtml = '<div style="display:grid; grid-template-columns:repeat(16,1fr); gap:3px; margin-top:8px;">';
+        let gridHtml = '<div class="ip-grid" style="display:grid; grid-template-columns:repeat(16,1fr); gap:3px; margin-top:8px;">';
         for (let i = 0; i < 256; i++) {
             const ip = `${subnet}.${i}`;
             const info = data.used_ips[String(i)];
